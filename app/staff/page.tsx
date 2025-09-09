@@ -41,44 +41,151 @@ export default function Staff(){
   },[slots, staffFilter]);
 
   return (
-    <main style={{maxWidth:900,margin:'24px auto',fontFamily:'ui-sans-serif'}}>
-      <h1>Vue Staff</h1>
-      <div style={{display:'flex',gap:8,marginBottom:12,alignItems:'center',flexWrap:'wrap'}}>
-        <input type="date" value={today} onChange={e=>setToday(e.target.value)} />
-        {zonesList.map(z=>
-          <button key={z.id} onClick={()=>setZone(z.name)} style={styles.chip}>{z.name}</button>
-        )}
-        <button onClick={()=>setZone(undefined)} style={styles.chip}>Toutes</button>
+    <div style={styles.container}>
+      <header style={styles.header}>
+        <div style={styles.headerContent}>
+          <div style={styles.logo}>
+            <div style={styles.logoIcon}>👥</div>
+            <h1 style={styles.title}>Vue Staff</h1>
+          </div>
+          <nav style={styles.nav}>
+            <a href="/" style={styles.navLink}>← Retour au calendrier</a>
+            <a href="/admin" style={styles.navLink}>Administration</a>
+          </nav>
+        </div>
+      </header>
 
-        <select
-          value={staffFilter??0}
-          onChange={e=>setStaffFilter(Number(e.target.value)||undefined)}
-          style={styles.select}
-        >
-          <option value={0}>Tous</option>
-          {staffs.map(s=><option key={s.id} value={s.id}>{s.name}</option>)}
-        </select>
-      </div>
+      <main style={styles.main}>
+        <div style={styles.filtersCard}>
+          <div style={styles.filterGroup}>
+            <label style={styles.filterLabel}>Date</label>
+            <input 
+              type="date" 
+              value={today} 
+              onChange={e=>setToday(e.target.value)} 
+              style={styles.dateInput}
+            />
+          </div>
 
-      <ul style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:8}}>
-        {viewSlots.map((s,i)=>(
-          <li key={i}
-              style={{border:'1px solid #e5e7eb',padding:8,borderRadius:8,cursor:'pointer'}}
-              onClick={()=>{ setSelectedSlot(s); setModalOpen(true); }}>
-            <b>{new Date(s.start).toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'})}</b>
-            {' '}→ {new Date(s.end).toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'})}
-            <div>Zone : {s.zone}</div>
-            <div>
-              Staff libres : {
-                s.available_staff_ids.length
-                  ? s.available_staff_ids.map(id=>staffMap[id]||`Staff ${id}`).join(', ')
-                  : '—'
-              }
+          <div style={styles.filterGroup}>
+            <label style={styles.filterLabel}>Zones</label>
+            <div style={styles.zoneFilters}>
+              <button 
+                onClick={()=>setZone(undefined)} 
+                style={{
+                  ...styles.zoneChip,
+                  ...(zone === undefined ? styles.zoneChipActive : {})
+                }}
+              >
+                Toutes les zones
+              </button>
+              {zonesList.map(z=>
+                <button 
+                  key={z.id} 
+                  onClick={()=>setZone(z.name)} 
+                  style={{
+                    ...styles.zoneChip,
+                    ...(zone === z.name ? styles.zoneChipActive : {})
+                  }}
+                >
+                  {z.name}
+                </button>
+              )}
             </div>
-          </li>
-        ))}
-        {viewSlots.length===0 && <li style={{gridColumn:'1 / -1',padding:12,color:'#6b7280'}}>Aucun créneau pour cette journée.</li>}
-      </ul>
+          </div>
+
+          <div style={styles.filterGroup}>
+            <label style={styles.filterLabel}>Staff</label>
+            <select
+              value={staffFilter??0}
+              onChange={e=>setStaffFilter(Number(e.target.value)||undefined)}
+              style={styles.staffSelect}
+            >
+              <option value={0}>Tous les membres</option>
+              {staffs.map(s=><option key={s.id} value={s.id}>{s.name}</option>)}
+            </select>
+          </div>
+        </div>
+
+        <div style={styles.slotsContainer}>
+          <div style={styles.slotsHeader}>
+            <h2 style={styles.slotsTitle}>
+              Créneaux disponibles
+              <span style={styles.slotsCount}>({viewSlots.length})</span>
+            </h2>
+            <div style={styles.dateDisplay}>
+              {new Date(today).toLocaleDateString('fr-FR', { 
+                weekday: 'long', 
+                year: 'numeric', 
+                month: 'long', 
+                day: 'numeric' 
+              })}
+            </div>
+          </div>
+
+          {viewSlots.length === 0 ? (
+            <div style={styles.emptyState}>
+              <div style={styles.emptyIcon}>📅</div>
+              <h3 style={styles.emptyTitle}>Aucun créneau disponible</h3>
+              <p style={styles.emptyDescription}>
+                Il n'y a pas de créneaux libres pour cette journée avec les filtres sélectionnés.
+              </p>
+            </div>
+          ) : (
+            <div style={styles.slotsGrid}>
+              {viewSlots.map((s,i)=>(
+                <div 
+                  key={i}
+                  style={styles.slotCard}
+                  onClick={()=>{ setSelectedSlot(s); setModalOpen(true); }}
+                >
+                  <div style={styles.slotTime}>
+                    <div style={styles.timeRange}>
+                      <span style={styles.startTime}>
+                        {new Date(s.start).toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'})}
+                      </span>
+                      <span style={styles.timeSeparator}>→</span>
+                      <span style={styles.endTime}>
+                        {new Date(s.end).toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'})}
+                      </span>
+                    </div>
+                    <div style={styles.duration}>
+                      {Math.round((new Date(s.end).getTime() - new Date(s.start).getTime()) / (1000 * 60))} min
+                    </div>
+                  </div>
+
+                  <div style={styles.slotZone}>
+                    <div style={styles.zoneLabel}>Zone</div>
+                    <div style={styles.zoneName}>{s.zone}</div>
+                  </div>
+
+                  <div style={styles.slotStaff}>
+                    <div style={styles.staffLabel}>Staff disponibles</div>
+                    <div style={styles.staffList}>
+                      {s.available_staff_ids.length > 0 ? (
+                        s.available_staff_ids.map(id => (
+                          <span key={id} style={styles.staffBadge}>
+                            {staffMap[id] || `Staff ${id}`}
+                          </span>
+                        ))
+                      ) : (
+                        <span style={styles.noStaff}>Aucun staff</span>
+                      )}
+                    </div>
+                  </div>
+
+                  <div style={styles.slotAction}>
+                    <button style={styles.bookButton}>
+                      📅 Réserver
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+    </main>
 
       <BookingModal
         open={modalOpen}
@@ -86,18 +193,391 @@ export default function Staff(){
         slot={selectedSlot}
         staffMap={staffMap}
       />
-    </main>
+    </div>
   );
 }
 
 const styles:any = {
-  chip:{ padding:'6px 10px', border:'1px solid #e5e7eb', borderRadius:999, background:'#fff', cursor:'pointer' },
-  select:{ padding:'6px 10px', border:'1px solid #e5e7eb', borderRadius:8, background:'#fff' },
-  backdrop:{ position:'fixed', inset:0, background:'rgba(0,0,0,0.4)', display:'flex',alignItems:'center',justifyContent:'center',zIndex:50 },
-  modal:{ background:'#fff', padding:20, borderRadius:12, maxWidth:500, width:'100%' },
-  input:{ padding:'8px 10px', border:'1px solid #e5e7eb', borderRadius:8, width:'100%' },
-  primaryBtn:{ padding:'8px 12px', background:'#6b21a8', color:'#fff', border:'none', borderRadius:8, cursor:'pointer' },
-  secondaryBtn:{ padding:'8px 12px', background:'#e5e7eb', border:'none', borderRadius:8, cursor:'pointer' }
+  container: {
+    minHeight: '100vh',
+    backgroundColor: '#f8f9fa',
+    fontFamily: '"Google Sans", "Roboto", -apple-system, BlinkMacSystemFont, sans-serif'
+  },
+  
+  header: {
+    backgroundColor: '#ffffff',
+    borderBottom: '1px solid #e8eaed',
+    boxShadow: '0 1px 2px 0 rgba(60,64,67,0.3), 0 1px 3px 1px rgba(60,64,67,0.15)',
+    position: 'sticky',
+    top: 0,
+    zIndex: 10
+  },
+  
+  headerContent: {
+    maxWidth: '1200px',
+    margin: '0 auto',
+    padding: '16px 24px',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between'
+  },
+  
+  logo: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '12px'
+  },
+  
+  logoIcon: {
+    fontSize: '24px'
+  },
+  
+  title: {
+    fontSize: '24px',
+    fontWeight: 400,
+    color: '#3c4043',
+    margin: 0
+  },
+  
+  nav: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '16px'
+  },
+  
+  navLink: {
+    color: '#1a73e8',
+    textDecoration: 'none',
+    fontSize: '14px',
+    fontWeight: 500,
+    padding: '8px 16px',
+    borderRadius: '4px',
+    transition: 'background-color 0.2s ease',
+    ':hover': {
+      backgroundColor: '#f1f3f4'
+    }
+  },
+  
+  main: {
+    maxWidth: '1200px',
+    margin: '0 auto',
+    padding: '24px'
+  },
+  
+  filtersCard: {
+    backgroundColor: '#ffffff',
+    borderRadius: '8px',
+    boxShadow: '0 1px 2px 0 rgba(60,64,67,0.3), 0 1px 3px 1px rgba(60,64,67,0.15)',
+    padding: '24px',
+    marginBottom: '24px',
+    display: 'grid',
+    gap: '24px'
+  },
+  
+  filterGroup: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '8px'
+  },
+  
+  filterLabel: {
+    fontSize: '14px',
+    fontWeight: 500,
+    color: '#3c4043'
+  },
+  
+  dateInput: {
+    padding: '12px 16px',
+    border: '1px solid #dadce0',
+    borderRadius: '4px',
+    fontSize: '14px',
+    color: '#3c4043',
+    backgroundColor: '#ffffff',
+    maxWidth: '200px'
+  },
+  
+  zoneFilters: {
+    display: 'flex',
+    gap: '8px',
+    flexWrap: 'wrap'
+  },
+  
+  zoneChip: {
+    padding: '8px 16px',
+    border: '1px solid #dadce0',
+    borderRadius: '20px',
+    backgroundColor: '#ffffff',
+    color: '#3c4043',
+    fontSize: '14px',
+    fontWeight: 500,
+    cursor: 'pointer',
+    transition: 'all 0.2s ease',
+    ':hover': {
+      backgroundColor: '#f1f3f4'
+    }
+  },
+  
+  zoneChipActive: {
+    backgroundColor: '#1a73e8',
+    color: '#ffffff',
+    borderColor: '#1a73e8'
+  },
+  
+  staffSelect: {
+    padding: '12px 16px',
+    border: '1px solid #dadce0',
+    borderRadius: '4px',
+    fontSize: '14px',
+    color: '#3c4043',
+    backgroundColor: '#ffffff',
+    maxWidth: '200px',
+    cursor: 'pointer'
+  },
+  
+  slotsContainer: {
+    backgroundColor: '#ffffff',
+    borderRadius: '8px',
+    boxShadow: '0 1px 2px 0 rgba(60,64,67,0.3), 0 1px 3px 1px rgba(60,64,67,0.15)',
+    overflow: 'hidden'
+  },
+  
+  slotsHeader: {
+    padding: '24px 24px 16px',
+    borderBottom: '1px solid #e8eaed',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    flexWrap: 'wrap',
+    gap: '16px'
+  },
+  
+  slotsTitle: {
+    fontSize: '20px',
+    fontWeight: 500,
+    color: '#3c4043',
+    margin: 0,
+    display: 'flex',
+    alignItems: 'center',
+    gap: '8px'
+  },
+  
+  slotsCount: {
+    fontSize: '16px',
+    color: '#5f6368',
+    fontWeight: 400
+  },
+  
+  dateDisplay: {
+    fontSize: '14px',
+    color: '#5f6368',
+    fontWeight: 500,
+    textTransform: 'capitalize'
+  },
+  
+  emptyState: {
+    padding: '64px 24px',
+    textAlign: 'center'
+  },
+  
+  emptyIcon: {
+    fontSize: '48px',
+    marginBottom: '16px'
+  },
+  
+  emptyTitle: {
+    fontSize: '20px',
+    fontWeight: 500,
+    color: '#3c4043',
+    margin: '0 0 8px 0'
+  },
+  
+  emptyDescription: {
+    fontSize: '14px',
+    color: '#5f6368',
+    margin: 0,
+    maxWidth: '400px',
+    marginLeft: 'auto',
+    marginRight: 'auto'
+  },
+  
+  slotsGrid: {
+    padding: '24px',
+    display: 'grid',
+    gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))',
+    gap: '16px'
+  },
+  
+  slotCard: {
+    border: '1px solid #e8eaed',
+    borderRadius: '8px',
+    padding: '20px',
+    cursor: 'pointer',
+    transition: 'all 0.2s ease',
+    backgroundColor: '#ffffff',
+    ':hover': {
+      boxShadow: '0 2px 8px 0 rgba(60,64,67,0.3)',
+      transform: 'translateY(-2px)'
+    }
+  },
+  
+  slotTime: {
+    marginBottom: '16px'
+  },
+  
+  timeRange: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '8px',
+    marginBottom: '4px'
+  },
+  
+  startTime: {
+    fontSize: '18px',
+    fontWeight: 600,
+    color: '#1a73e8'
+  },
+  
+  timeSeparator: {
+    fontSize: '16px',
+    color: '#5f6368'
+  },
+  
+  endTime: {
+    fontSize: '18px',
+    fontWeight: 600,
+    color: '#1a73e8'
+  },
+  
+  duration: {
+    fontSize: '12px',
+    color: '#5f6368',
+    fontWeight: 500
+  },
+  
+  slotZone: {
+    marginBottom: '16px'
+  },
+  
+  zoneLabel: {
+    fontSize: '12px',
+    color: '#5f6368',
+    fontWeight: 500,
+    textTransform: 'uppercase',
+    letterSpacing: '0.8px',
+    marginBottom: '4px'
+  },
+  
+  zoneName: {
+    fontSize: '16px',
+    fontWeight: 500,
+    color: '#3c4043'
+  },
+  
+  slotStaff: {
+    marginBottom: '20px'
+  },
+  
+  staffLabel: {
+    fontSize: '12px',
+    color: '#5f6368',
+    fontWeight: 500,
+    textTransform: 'uppercase',
+    letterSpacing: '0.8px',
+    marginBottom: '8px'
+  },
+  
+  staffList: {
+    display: 'flex',
+    flexWrap: 'wrap',
+    gap: '6px'
+  },
+  
+  staffBadge: {
+    padding: '4px 8px',
+    backgroundColor: '#e8f0fe',
+    color: '#1a73e8',
+    borderRadius: '12px',
+    fontSize: '12px',
+    fontWeight: 500
+  },
+  
+  noStaff: {
+    fontSize: '12px',
+    color: '#9aa0a6',
+    fontStyle: 'italic'
+  },
+  
+  slotAction: {
+    display: 'flex',
+    justifyContent: 'flex-end'
+  },
+  
+  bookButton: {
+    padding: '10px 20px',
+    backgroundColor: '#34a853',
+    color: '#ffffff',
+    border: 'none',
+    borderRadius: '4px',
+    fontSize: '14px',
+    fontWeight: 500,
+    cursor: 'pointer',
+    transition: 'background-color 0.2s ease',
+    ':hover': {
+      backgroundColor: '#2d8f47'
+    }
+  },
+  
+  backdrop: {
+    position: 'fixed',
+    inset: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 50,
+    padding: '16px'
+  },
+  
+  modal: {
+    backgroundColor: '#ffffff',
+    borderRadius: '8px',
+    boxShadow: '0 24px 38px 3px rgba(0,0,0,0.14)',
+    maxWidth: '500px',
+    width: '100%',
+    maxHeight: '90vh',
+    overflow: 'auto'
+  },
+  
+  input: {
+    padding: '12px 16px',
+    border: '1px solid #dadce0',
+    borderRadius: '4px',
+    fontSize: '14px',
+    width: '100%',
+    boxSizing: 'border-box'
+  },
+  
+  primaryBtn: {
+    padding: '12px 24px',
+    backgroundColor: '#1a73e8',
+    color: '#ffffff',
+    border: 'none',
+    borderRadius: '4px',
+    fontSize: '14px',
+    fontWeight: 500,
+    cursor: 'pointer'
+  },
+  
+  secondaryBtn: {
+    padding: '12px 24px',
+    backgroundColor: '#f8f9fa',
+    color: '#3c4043',
+    border: '1px solid #dadce0',
+    borderRadius: '4px',
+    fontSize: '14px',
+    fontWeight: 500,
+    cursor: 'pointer'
+  }
 };
 
 function BookingModal({
@@ -136,34 +616,139 @@ function BookingModal({
   return (
     <div style={styles.backdrop} onClick={onClose}>
       <div style={styles.modal} onClick={e=>e.stopPropagation()}>
-        <h3 style={{margin:0}}>Créer un événement</h3>
-        <p style={{marginTop:8}}>
-          <b>{new Date(slot.start).toLocaleString('fr-FR')}</b>
-          {' '}→ {new Date(slot.end).toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'})}
-          {' '}· Zone <b>{slot.zone}</b>
-        </p>
+        <div style={{padding:'24px 24px 16px', borderBottom:'1px solid #e8eaed'}}>
+          <h3 style={{margin:0, fontSize:'20px', fontWeight:500, color:'#3c4043'}}>Nouvelle réservation</h3>
+        </div>
+        
+        <div style={{padding:'16px 24px', backgroundColor:'#f8f9fa', borderBottom:'1px solid #e8eaed'}}>
+          <div style={{display:'flex', alignItems:'center', gap:'12px'}}>
+            <div style={{fontSize:'24px'}}>🕐</div>
+            <div>
+              <div style={{fontSize:'16px', fontWeight:500, color:'#3c4043'}}>
+                {new Date(slot.start).toLocaleDateString('fr-FR', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
+              </div>
+              <div style={{fontSize:'14px', color:'#5f6368'}}>
+                {new Date(slot.start).toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'})}
+                {' '}→ {new Date(slot.end).toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'})}
+              </div>
+              <div style={{fontSize:'14px', color:'#1a73e8', fontWeight:500}}>Zone: {slot.zone}</div>
+            </div>
+          </div>
+        </div>
 
-        <div style={{display:'grid',gap:8}}>
-          <input placeholder="Titre (optionnel)" value={title} onChange={e=>setTitle(e.target.value)} style={styles.input}/>
-          <textarea placeholder="Notes (optionnel)" value={notes} onChange={e=>setNotes(e.target.value)} style={{...styles.input,minHeight:70}} />
-          <input placeholder="Invités (emails, séparés par virgules)" value={att} onChange={e=>setAtt(e.target.value)} style={styles.input}/>
+        <div style={{padding:'24px', display:'grid', gap:'16px'}}>
+          <div>
+            <label style={{display:'block', fontSize:'14px', fontWeight:500, color:'#3c4043', marginBottom:'8px'}}>
+              Titre de l'événement
+            </label>
+            <input 
+              placeholder="Rendez-vous client..." 
+              value={title} 
+              onChange={e=>setTitle(e.target.value)} 
+              style={styles.input}
+            />
+          </div>
 
-          <div style={{display:'flex',gap:8}}>
-            <select value={staffId??0} onChange={e=>setStaffId(Number(e.target.value)||undefined)} style={styles.input}>
+          <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:'16px'}}>
+            <div>
+              <label style={{display:'block', fontSize:'14px', fontWeight:500, color:'#3c4043', marginBottom:'8px'}}>
+                Nom du client *
+              </label>
+              <input 
+                placeholder="Jean Dupont" 
+                value={name} 
+                onChange={e=>setName(e.target.value)} 
+                style={styles.input}
+                required
+              />
+            </div>
+            <div>
+              <label style={{display:'block', fontSize:'14px', fontWeight:500, color:'#3c4043', marginBottom:'8px'}}>
+                Staff assigné
+              </label>
+              <select value={staffId??0} onChange={e=>setStaffId(Number(e.target.value)||undefined)} style={styles.input}>
               <option value={0}>Auto (least-load)</option>
               {slot.available_staff_ids.map(id=><option key={id} value={id}>{staffMap[id]||`Staff ${id}`}</option>)}
             </select>
-            <input placeholder="Nom client *" value={name} onChange={e=>setName(e.target.value)} style={styles.input}/>
-          </div>
-          <div style={{display:'flex',gap:8}}>
-            <input placeholder="Email client" value={email} onChange={e=>setEmail(e.target.value)} style={styles.input}/>
-            <input placeholder="Téléphone" value={tel} onChange={e=>setTel(e.target.value)} style={styles.input}/>
+            </div>
           </div>
 
-          <button onClick={book} disabled={!name||loading} style={styles.primaryBtn}>{loading?'Création…':'Créer l’événement'}</button>
-          {ok && <div style={{color:'#16a34a',fontSize:13}}>{ok}</div>}
-          {err && <div style={{color:'#dc2626',fontSize:13}}>{err}</div>}
-          <button onClick={onClose} style={styles.secondaryBtn}>Fermer</button>
+          <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:'16px'}}>
+            <div>
+              <label style={{display:'block', fontSize:'14px', fontWeight:500, color:'#3c4043', marginBottom:'8px'}}>
+                Email
+              </label>
+              <input 
+                type="email"
+                placeholder="jean.dupont@email.com" 
+                value={email} 
+                onChange={e=>setEmail(e.target.value)} 
+                style={styles.input}
+              />
+            </div>
+            <div>
+              <label style={{display:'block', fontSize:'14px', fontWeight:500, color:'#3c4043', marginBottom:'8px'}}>
+                Téléphone
+              </label>
+              <input 
+                type="tel"
+                placeholder="06 12 34 56 78" 
+                value={tel} 
+                onChange={e=>setTel(e.target.value)} 
+                style={styles.input}
+              />
+            </div>
+          </div>
+
+          <div>
+            <label style={{display:'block', fontSize:'14px', fontWeight:500, color:'#3c4043', marginBottom:'8px'}}>
+              Notes
+            </label>
+            <textarea 
+              placeholder="Informations complémentaires..." 
+              value={notes} 
+              onChange={e=>setNotes(e.target.value)} 
+              style={{...styles.input, minHeight:'80px', resize:'vertical', fontFamily:'inherit'}}
+            />
+          </div>
+
+          <div>
+            <label style={{display:'block', fontSize:'14px', fontWeight:500, color:'#3c4043', marginBottom:'8px'}}>
+              Invités (emails séparés par des virgules)
+            </label>
+            <input 
+              placeholder="invite1@email.com, invite2@email.com" 
+              value={att} 
+              onChange={e=>setAtt(e.target.value)} 
+              style={styles.input}
+            />
+          </div>
+
+          {ok && (
+            <div style={{padding:'12px 16px', backgroundColor:'#e8f5e8', color:'#137333', borderRadius:'4px', fontSize:'14px'}}>
+              ✅ {ok}
+            </div>
+          )}
+
+          {err && (
+            <div style={{padding:'12px 16px', backgroundColor:'#fce8e6', color:'#d93025', borderRadius:'4px', fontSize:'14px'}}>
+              ❌ {err}
+            </div>
+          )}
+
+          <div style={{display:'flex', justifyContent:'flex-end', gap:'12px', paddingTop:'16px', borderTop:'1px solid #e8eaed'}}>
+            <button onClick={onClose} style={styles.secondaryBtn}>Annuler</button>
+            <button 
+              onClick={book} 
+              disabled={!name||loading} 
+              style={{
+                ...styles.primaryBtn,
+                ...((!name||loading) ? {backgroundColor:'#dadce0', color:'#9aa0a6', cursor:'not-allowed'} : {})
+              }}
+            >
+              {loading ? 'Création en cours...' : 'Créer l\'événement'}
+            </button>
+          </div>
         </div>
       </div>
     </div>
