@@ -6,7 +6,19 @@ const API = process.env.NEXT_PUBLIC_API_URL as string;
 type Zone = { id:number; name:string; color:string };
 type Rule = { id:number; zone_id:number; weekday:number; start_time:string; end_time:string };
 type Ex   = { id:number; zone_id:number; date:string; start_time:string; end_time:string; note?:string };
-type Settings = { booking_step_min:number; default_duration_min:number; buffer_before_min:number; buffer_after_min:number; notice_min:number; window_days:number };
+type Settings = {
+  booking_step_min: number;
+  default_duration_min: number;
+  buffer_before_min: number;
+  buffer_after_min: number;
+  notice_min: number;
+  window_days: number;
+  // Optionnels (peuvent ne pas exister selon l'instance SQL)
+  demo_visio_duration_min?: number | null;
+  demo_visio_buffer_before_min?: number | null;
+  demo_visio_buffer_after_min?: number | null;
+  demo_physique_duration_min?: number | null;
+};
 type SZR = { id:number; staff_id:number; zone_id:number; weekday:number; start_time:string; end_time:string };
 
 export default function Admin(){
@@ -366,18 +378,22 @@ export default function Admin(){
           <div style={styles.settingsGrid}>
             {[
               ['booking_step_min','Pas (min)'],
-              ['default_duration_min','Durée (min)'],
+              ['default_duration_min','Durée par défaut (min)'],
               ['buffer_before_min','Buffer avant (min)'],
               ['buffer_after_min','Buffer après (min)'],
               ['notice_min','Préavis (min)'],
               ['window_days','Fenêtre (jours)'],
+              ['demo_visio_duration_min','Durée visio (min)'],
+              ['demo_visio_buffer_before_min','Buffer avant visio (min)'],
+              ['demo_visio_buffer_after_min','Buffer après visio (min)'],
+              ['demo_physique_duration_min','Durée physique (min)'],
             ].map(([k,label])=>(
               <label key={k} style={styles.settingItem}>
                 <span style={styles.settingLabel}>{label}</span>
                 <input 
                   type="number" 
-                  value={(settings as any)[k]} 
-                  onChange={e=>setSettings({...settings,[k]:Number(e.target.value)})} 
+                  value={(settings as any)[k] ?? ''} 
+                  onChange={e=>setSettings({...settings,[k]: (e.target.value===''? null : Number(e.target.value))})} 
                   style={styles.settingInput}
                 />
               </label>

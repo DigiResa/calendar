@@ -184,7 +184,6 @@ export default function Staff(){
             </div>
           )}
         </div>
-      </div>
     </main>
 
       <BookingModal
@@ -586,9 +585,12 @@ function BookingModal({
   const [name,setName]=useState(''); const [email,setEmail]=useState(''); const [tel,setTel]=useState('');
   const [title,setTitle]=useState(''); const [notes,setNotes]=useState(''); const [att,setAtt]=useState('');
   const [staffId,setStaffId]=useState<number|undefined>(undefined);
+  const [isVisio, setIsVisio] = useState(false);
+  const [restaurant, setRestaurant] = useState('');
+  const [city, setCity] = useState('');
   const [loading,setLoading]=useState(false); const [ok,setOk]=useState<string|null>(null); const [err,setErr]=useState<string|null>(null);
 
-  useEffect(()=>{ if(open){ setName(''); setEmail(''); setTel(''); setTitle(''); setNotes(''); setAtt(''); setStaffId(undefined); setOk(null); setErr(null); setLoading(false);} },[open]);
+  useEffect(()=>{ if(open){ setName(''); setEmail(''); setTel(''); setTitle(''); setNotes(''); setAtt(''); setStaffId(undefined); setIsVisio(false); setRestaurant(''); setCity(''); setOk(null); setErr(null); setLoading(false);} },[open]);
   if(!open||!slot) return null;
 
   async function book(){
@@ -596,12 +598,20 @@ function BookingModal({
     try{
       const localStart = dayjs(slot.start).tz('Europe/Paris').format();
       const localEnd   = dayjs(slot.end).tz('Europe/Paris').format();
+      const rawInv = att.split(',').map(s=>s.trim()).filter(Boolean);
+      const emails = [ ...(email ? [email] : []), ...rawInv ];
+      const seen = new Set<string>();
+      const attendees = emails.filter(e => { const k = e.toLowerCase(); if (seen.has(k)) return false; seen.add(k); return true; });
+
       const body:any = {
         slot_start: localStart, slot_end: localEnd, zone_name:slot.zone,
         client_name:name, client_email:email, client_phone:tel,
-        summary:title, notes,
-        attendees: att.split(',').map(s=>s.trim()).filter(Boolean),
+        summary:`DÉMO DIGIRESA (${name||''})`, notes,
+        attendees,
       };
+      body.meeting_mode = isVisio ? 'visio' : 'physique';
+      if (restaurant) body.restaurant_name = restaurant;
+      if (city) body.city = city;
       if (staffId) body.staff_id = staffId;
       const res=await fetch(`${API}/book`,{
         method:'POST',
@@ -609,7 +619,8 @@ function BookingModal({
         body:JSON.stringify(body)
       });
       const data=await res.json(); if(!res.ok) throw new Error(data?.detail||data?.error||'Erreur');
-      setOk(`Réservé. ${staffMap[data.staff_id]||`Staff ${data.staff_id}`}. Event ${data.event_id||''}`);
+      const meet = data?.meet_link ? ` · Lien Meet: ${data.meet_link}` : '';
+      setOk(`Réservé. ${staffMap[data.staff_id]||`Staff ${data.staff_id}`}. Event ${data.event_id||''}${meet}`);
     }catch(e:any){ setErr(e.message||'Erreur'); } finally{ setLoading(false); }
   }
 
@@ -637,6 +648,16 @@ function BookingModal({
         </div>
 
         <div style={{padding:'24px', display:'grid', gap:'16px'}}>
+          <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:'16px'}}>
+            <div>
+              <label style={{display:'block', fontSize:'14px', fontWeight:500, color:'#3c4043', marginBottom:'8px'}}>Nom du restaurant</label>
+              <input placeholder="Ex: Chez Mario" value={restaurant} onChange={e=>setRestaurant(e.target.value)} style={styles.input} />
+            </div>
+            <div>
+              <label style={{display:'block', fontSize:'14px', fontWeight:500, color:'#3c4043', marginBottom:'8px'}}>Ville</label>
+              <input placeholder="Ex: Narbonne" value={city} onChange={e=>setCity(e.target.value)} style={styles.input} />
+            </div>
+          </div>
           <div>
             <label style={{display:'block', fontSize:'14px', fontWeight:500, color:'#3c4043', marginBottom:'8px'}}>
               Titre de l'événement
@@ -716,12 +737,15 @@ function BookingModal({
             <label style={{display:'block', fontSize:'14px', fontWeight:500, color:'#3c4043', marginBottom:'8px'}}>
               Invités (emails séparés par des virgules)
             </label>
-            <input 
-              placeholder="invite1@email.com, invite2@email.com" 
-              value={att} 
-              onChange={e=>setAtt(e.target.value)} 
-              style={styles.input}
-            />
+          <input 
+            placeholder="invite1@email.com, invite2@email.com" 
+            value={att} 
+            onChange={e=>setAtt(e.target.value)} 
+            style={styles.input}
+          />
+          <label style={{display:'flex',alignItems:'center',gap:8,fontSize:14, marginTop:8}}>
+            <input type="checkbox" checked={isVisio} onChange={e=>setIsVisio(e.target.checked)} /> RDV en visio (Google Meet)
+          </label>
           </div>
 
           {ok && (

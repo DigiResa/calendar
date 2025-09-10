@@ -24,10 +24,15 @@ type Zone = { id: number; name: string; color?: string };
 type ZoneRule = { id: number; zone_id: number; weekday: number; start_time: string; end_time: string };
 type StaffZoneRule = { id:number; staff_id:number; zone_id:number; weekday:number; start_time:string; end_time:string };
 type ZoneException = { id:number; zone_id:number; date:string; start_time:string; end_time:string; note?:string };
-type Booking = { id:number; start:string; end:string; zone:string; zone_id:number; staff_name?:string; client_name:string };
+type Booking = { id:number; start:string; end:string; zone:string; zone_id:number; staff_name?:string; client_name:string; title?:string; meeting_mode?: 'visio' | 'physique' };
 
 export default function CalendarWeek() {
-  const [weekStart, setWeekStart] = useState(dayjs().startOf('week').add(1, 'day'));
+  function weekStartMonday(base: any){
+    const s = dayjs(base).startOf('week');
+    // Si startOf('week') est déjà lundi, garder; sinon ajouter 1 jour
+    return s.day() === 1 ? s : s.add(1, 'day');
+  }
+  const [weekStart, setWeekStart] = useState(weekStartMonday(dayjs()));
   const [slots, setSlots] = useState<Slot[]>([]);
   const [zonesList, setZonesList] = useState<Zone[]>([]);
   const [zoneRules, setZoneRules] = useState<ZoneRule[]>([]);
@@ -35,9 +40,20 @@ export default function CalendarWeek() {
   const [zoneExceptions, setZoneExceptions] = useState<ZoneException[]>([]);
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [staffs, setStaffs] = useState<{ id: number; name: string }[]>([]);
+  const [settings, setSettings] = useState<any|null>(null);
   const staffMap = useMemo(() => Object.fromEntries(staffs.map(s => [s.id, s.name])), [staffs]);
   const zoneByName = useMemo(() => Object.fromEntries(zonesList.map(z => [z.name, z])), [zonesList]);
   const zoneById = useMemo(() => Object.fromEntries(zonesList.map(z => [z.id, z])), [zonesList]);
+  // Sélection de zone par demi-journée, stockée localement (non persistée côté serveur)
+  const [dayZoneSel, setDayZoneSel] = useState<Record<string, { morning?: string; afternoon?: string }>>(() => {
+    if (typeof window === 'undefined') return {};
+    try { const s = localStorage.getItem('dayZoneSel'); return s ? JSON.parse(s) : {}; } catch { return {}; }
+  });
+  useEffect(() => { try { localStorage.setItem('dayZoneSel', JSON.stringify(dayZoneSel)); } catch {} }, [dayZoneSel]);
+  function selectedZoneFor(dateStr: string, half: 'morning'|'afternoon') { return dayZoneSel[dateStr]?.[half]; }
+  function setSelectedZone(dateStr: string, half: 'morning'|'afternoon', zoneName?: string) {
+    setDayZoneSel(prev => ({ ...prev, [dateStr]: { ...(prev[dateStr]||{}), [half]: zoneName || undefined } }));
+  }
 
   const [zoneFilter, setZoneFilter] = useState<string | undefined>();
   const [staffFilter, setStaffFilter] = useState<number | undefined>();
@@ -45,6 +61,10 @@ export default function CalendarWeek() {
 
   const [modalOpen, setModalOpen] = useState(false);
   const [selectedSlot, setSelectedSlot] = useState<Slot | null>(null);
+  const [openBooking, setOpenBooking] = useState<Booking | null>(null);
+  // Garde-fou pour éviter les divergences SSR/CSR (hydration)
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => { setMounted(true); }, []);
 
   // Edition ponctuelle
   const [editDay, setEditDay] = useState<string | null>(null);
@@ -60,12 +80,14 @@ export default function CalendarWeek() {
       fetch(`${API}/admin/zones`).then(r => r.json()).catch(() => []),
       fetch(`${API}/admin/zone_rules`).then(r => r.json()).catch(() => []),
       fetch(`${API}/admin/staff_zone_rules`).then(r => r.json()).catch(() => []),
-      fetch(`${API}/admin/staff`).then(r => r.json()).catch(() => [])
-    ]).then(([z, zr, szr, st]) => {
+      fetch(`${API}/admin/staff`).then(r => r.json()).catch(() => []),
+      fetch(`${API}/admin/settings`).then(r => r.json()).catch(() => null)
+    ]).then(([z, zr, szr, st, se]) => {
       setZonesList(Array.isArray(z) ? z : []);
       setZoneRules(Array.isArray(zr) ? zr : []);
       setStaffZoneRules(Array.isArray(szr) ? szr : []);
       setStaffs(Array.isArray(st) ? st : []);
+      setSettings(se);
     });
   }, []);
 
@@ -105,12 +127,40 @@ export default function CalendarWeek() {
           zone: x.zone_name,
           zone_id: x.zone_id,
           staff_name: x.staff_name || undefined,
-          client_name: x.client_name || ''
+          client_name: x.client_name || '',
+          title: x.title || x.client_name || '',
+          meeting_mode: (x.meeting_mode === 'visio' || x.meeting_mode === 'physique') ? x.meeting_mode : undefined
         }));
         setBookings(mapped);
       })
       .catch(() => setBookings([]));
   }, [weekStart, zoneFilter]);
+
+  // Recharge uniquement les réservations (après annulation, etc.)
+  async function reloadBookings() {
+    try {
+      const from = weekStart.startOf('day').format('YYYY-MM-DD');
+      const to = weekStart.add(6, 'day').endOf('day').format('YYYY-MM-DD');
+      const qb = new URLSearchParams({
+        from: `${from}T00:00:00Z`,
+        to: `${to}T23:59:59Z`,
+        ...(zoneFilter ? { zone: zoneFilter } : {})
+      } as any);
+      const arr = await fetch(`${API}/admin/bookings?${qb.toString()}`).then(r=>r.json());
+      if (!Array.isArray(arr)) { setBookings([]); return; }
+      const mapped = arr.map((x:any) => ({
+        id: x.id,
+        start: new Date(x.starts_at).toISOString(),
+        end: new Date(x.ends_at).toISOString(),
+        zone: x.zone_name,
+        zone_id: x.zone_id,
+        staff_name: x.staff_name || undefined,
+        client_name: x.client_name || '',
+        title: x.title || x.client_name || ''
+      }));
+      setBookings(mapped);
+    } catch { setBookings([]); }
+  }
 
   function asTime(v: string) { return v.length === 5 ? `${v}:00` : v; }
   async function applyDayConfig(dateStr: string) {
@@ -240,34 +290,72 @@ export default function CalendarWeek() {
   
   function eventsForDay(day: dayjs.Dayjs): UiEvent[] {
     const evts: UiEvent[] = [];
+    // Regroupe les créneaux par (start,end) quand aucune zone n'est sélectionnée
+    const groups = new Map<string, { startISO:string; endISO:string; zones:Set<string>; staff:Set<string> }>();
     for (const s of filteredSlots) {
       const ds = dayjs(s.start).tz('Europe/Paris');
       if (!ds.isSame(day, 'day')) continue;
       const de = dayjs(s.end).tz('Europe/Paris');
-      const zc = (zoneByName[s.zone]?.color) || '#4285f4';
+      const dateStr = day.tz('Europe/Paris').format('YYYY-MM-DD');
+      const half: 'morning'|'afternoon' = ds.hour() < 13 ? 'morning' : 'afternoon';
+      const sel = selectedZoneFor(dateStr, half);
+      if (sel && s.zone !== sel) continue;
+
+      if (!sel) {
+        const key = `${s.start}|${s.end}`;
+        if (!groups.has(key)) groups.set(key, { startISO: s.start, endISO: s.end, zones: new Set(), staff: new Set() });
+        const g = groups.get(key)!;
+        g.zones.add(s.zone);
+        const names = (s.available_staff_names && s.available_staff_names.length
+          ? s.available_staff_names
+          : (s.available_staff_ids||[]).map(id => staffMap[id] || `Staff ${id}`));
+        for (const n of names) g.staff.add(n);
+      } else {
+        // Sélection de zone active → affiche le créneau pour cette zone uniquement (pas de regroupement)
+        const zc = (zoneByName[s.zone]?.color) || '#4285f4';
+        const title = `${ds.format('HH:mm')} → ${de.format('HH:mm')}`;
+        const subtitle = (s.available_staff_names && s.available_staff_names.length
+          ? s.available_staff_names
+          : s.available_staff_ids.map(id => staffMap[id] || `Staff ${id}`)
+        ).join(', ');
+        evts.push({
+          id: `slot-${s.start}-${s.end}-${s.zone}`,
+          kind: 'slot', startISO: s.start, endISO: s.end,
+          startMin: minutesFromStart(ds), endMin: minutesFromStart(de),
+          zone: s.zone, color: zc, title, subtitle, clickable: true
+        });
+      }
+    }
+    // Ajoute les événements regroupés (si aucune zone sélectionnée pour la demi-journée)
+    for (const g of groups.values()) {
+      const ds = dayjs(g.startISO).tz('Europe/Paris');
+      const de = dayjs(g.endISO).tz('Europe/Paris');
       const title = `${ds.format('HH:mm')} → ${de.format('HH:mm')}`;
-      const subtitle = (s.available_staff_names && s.available_staff_names.length
-        ? s.available_staff_names
-        : s.available_staff_ids.map(id => staffMap[id] || `Staff ${id}`)
-      ).join(', ');
+      const subtitle = Array.from(g.staff).join(', ');
       evts.push({
-        id: `slot-${s.start}-${s.end}-${s.zone}`,
-        kind: 'slot', startISO: s.start, endISO: s.end,
+        id: `slotg-${g.startISO}-${g.endISO}`,
+        kind: 'slot', startISO: g.startISO, endISO: g.endISO,
         startMin: minutesFromStart(ds), endMin: minutesFromStart(de),
-        zone: s.zone, color: zc, title, subtitle, clickable: true
+        zone: Array.from(g.zones).join(' / '), color: '#6b21a8', title, subtitle, clickable: true
       });
     }
     for (const b of bookings) {
       const ds = dayjs(b.start).tz('Europe/Paris');
       if (!ds.isSame(day, 'day')) continue;
       const de = dayjs(b.end).tz('Europe/Paris');
-      const title = `${ds.format('HH:mm')} → ${de.format('HH:mm')}`;
-      const subtitle = `${b.client_name}${b.staff_name ? ` · ${b.staff_name}` : ''}`;
+      // Filtre par sélection de zone (demi-journée) pour les RDV pris
+      const dateStr = day.tz('Europe/Paris').format('YYYY-MM-DD');
+      const half: 'morning'|'afternoon' = ds.hour() < 13 ? 'morning' : 'afternoon';
+      const sel = selectedZoneFor(dateStr, half);
+      if (sel && b.zone !== sel) continue;
+      const timeLabel = `${ds.format('HH:mm')} → ${de.format('HH:mm')}`;
+      const mainTitle = `${b.client_name || 'Sans nom'}${(b.title && b.title.trim()) ? ` - ${b.title}` : ''} - ${b.zone}`;
+      const subtitle = `${timeLabel}${b.staff_name ? ` · ${b.staff_name}` : ''}`;
       evts.push({
         id: `bk-${b.id}`,
-        kind: 'booking', startISO: b.start, endISO: b.end,
+        kind: 'booking', startISO: ds.toISOString(), endISO: de.toISOString(),
         startMin: minutesFromStart(ds), endMin: minutesFromStart(de),
-        zone: b.zone, color: '#ea4335', title, subtitle, clickable: false
+        zone: b.zone, color: '#ea4335', title: mainTitle, subtitle, clickable: true
       });
     }
     const maxMin = (hourEnd - hourStart) * 60;
@@ -290,7 +378,7 @@ export default function CalendarWeek() {
 
   function prevWeek() { setWeekStart(weekStart.subtract(7, 'day')); }
   function nextWeek() { setWeekStart(weekStart.add(7, 'day')); }
-  function goToday() { setWeekStart(dayjs().startOf('week').add(1, 'day')); }
+  function goToday() { setWeekStart(weekStartMonday(dayjs())); }
 
   return (
     <div style={styles.container}>
@@ -401,83 +489,83 @@ export default function CalendarWeek() {
                     </div>
                   </div>
                   
-                  {zForDay.length > 0 && (
-                    <div style={styles.dayZones}>
-                      {zForDay.slice(0, 3).map(z => (
-                        <div key={z.id} style={{
-                          ...styles.zoneChip,
-                          backgroundColor: z.color + '20',
-                          borderColor: z.color,
-                          color: z.color
-                        }}>
-                          {z.name}
-                        </div>
-                      ))}
-                      {zForDay.length > 3 && (
-                        <div style={styles.moreZones}>+{zForDay.length - 3}</div>
-                      )}
-                    </div>
-                  )}
+                  {/* Tags généraux des zones ouvertes masqués selon demande */}
 
-                  {editDay === dateStr ? (
-                    <div style={styles.editPanel}>
-                      <select 
-                        value={editZoneId} 
-                        onChange={e => setEditZoneId(Number(e.target.value))} 
-                        style={styles.editSelect}
-                      >
-                        <option value={0}>Zone…</option>
-                        {zonesList.map(z => <option key={z.id} value={z.id}>{z.name}</option>)}
-                      </select>
-                      <div style={styles.timeInputs}>
-                        <input 
-                          type="time" 
-                          value={editStart.slice(0,5)} 
-                          onChange={e => setEditStart(asTime(e.target.value))} 
-                          style={styles.timeInput} 
-                        />
-                        <input 
-                          type="time" 
-                          value={editEnd.slice(0,5)} 
-                          onChange={e => setEditEnd(asTime(e.target.value))} 
-                          style={styles.timeInput} 
-                        />
-                      </div>
-                      <div style={styles.editActions}>
-                        <button 
-                          onClick={() => applyDayConfig(dateStr)} 
-                          disabled={editLoading} 
-                          style={styles.saveBtn}
-                        >
-                          {editLoading ? '⏳' : '✓'}
-                        </button>
-                        <button 
-                          onClick={() => { setEditDay(null); setEditMsg(null); }} 
-                          style={styles.cancelBtn}
-                        >
-                          ✕
-                        </button>
-                      </div>
-                      {editMsg && (
-                        <div style={{
-                          ...styles.editMessage,
-                          color: editMsg === 'Enregistré' ? '#34d399' : '#f87171'
-                        }}>
-                          {editMsg}
+                  {/* Tags issus des sélections (si présentes) */}
+                  {(() => {
+                    const mor = selectedZoneFor(dateStr,'morning');
+                    const aft = selectedZoneFor(dateStr,'afternoon');
+                    const tags: string[] = [];
+                    if (mor) tags.push(mor);
+                    if (aft && aft!==mor) tags.push(aft);
+                    if (tags.length) {
+                      return (
+                        <div style={{ display:'flex', gap:6, justifyContent:'center', flexWrap:'wrap', marginTop:6 }}>
+                          {tags.map((name)=>{
+                            const z = zonesList.find(zz=>zz.name===name);
+                            const c = z?.color || '#a66f21';
+                            return (
+                              <div key={name} style={{ padding:'2px 8px', borderRadius:12, fontSize:11, fontWeight:500, border:`1px solid ${c}`, maxWidth:'100%', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', backgroundColor:(c+'20'), color:c }}>
+                                {name}
+                              </div>
+                            );
+                          })}
+                          {mounted && (
+                            <button onClick={()=> setEditDay(dateStr)} style={styles.editBtn}><Edit /></button>
+                          )}
                         </div>
-                      )}
+                      );
+                    }
+                    // Pas de tags encore: afficher un bouton Configurer pour ouvrir le sélecteur
+                    return mounted ? (
+                      <div style={{ display:'flex', justifyContent:'center', marginTop:6 }}>
+                        <button onClick={()=> setEditDay(dateStr)} style={styles.editBtn}>Configurer</button>
+                      </div>
+                    ) : null;
+                  })()}
+
+                  {/* Sélecteurs de zone par demi-journée (matin/après-midi) */}
+                  {mounted && editDay === dateStr && (
+                    <div style={{ display:'grid', gap:6, marginTop:6 }}>
+                      <div style={{ display:'flex', gap:6, alignItems:'center', justifyContent:'center', flexWrap:'wrap' }}>
+                        <span style={{fontSize:12, color:'#6b7280'}}>Matin</span>
+                        <select
+                          value={selectedZoneFor(dateStr,'morning')||''}
+                          onChange={e=> setSelectedZone(dateStr,'morning', e.target.value || undefined)}
+                          style={styles.filterSelect}
+                        >
+                          <option value="">—</option>
+                          {zForDay.map(z => <option key={z.id} value={z.name}>{z.name}</option>)}
+                        </select>
+                        <span style={{fontSize:12, color:'#6b7280'}}>Après‑midi</span>
+                        <select
+                          value={selectedZoneFor(dateStr,'afternoon')||''}
+                          onChange={e=> setSelectedZone(dateStr,'afternoon', e.target.value || undefined)}
+                          style={styles.filterSelect}
+                        >
+                          <option value="">—</option>
+                          {zForDay.map(z => <option key={z.id} value={z.name}>{z.name}</option>)}
+                        </select>
+                        {(dayZoneSel[dateStr]?.morning || dayZoneSel[dateStr]?.afternoon) && (
+                          <button onClick={()=> setDayZoneSel(p=>{ const c={...p}; delete c[dateStr]; return c; })} style={styles.navBtn}>Effacer</button>
+                        )}
+                      </div>
+                      <div style={{ display:'flex', justifyContent:'center' }}>
+                        <button
+                          onClick={async()=>{
+                            const mor = selectedZoneFor(dateStr,'morning');
+                            const aft = selectedZoneFor(dateStr,'afternoon');
+                            const findZoneId = (name?:string)=> name? (zonesList.find(z=>z.name===name)?.id||0) : 0;
+                            try{
+                              if (mor) await fetch(`${API}/admin/day_zone_selection`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({date:dateStr,half:'morning',zone_id:findZoneId(mor)})});
+                              if (aft) await fetch(`${API}/admin/day_zone_selection`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({date:dateStr,half:'afternoon',zone_id:findZoneId(aft)})});
+                            }catch{}
+                            setEditDay(null);
+                          }}
+                          style={styles.navBtn}
+                        >Enregistrer</button>
+                      </div>
                     </div>
-                  ) : (
-                    <button 
-                      onClick={() => { 
-                        setEditDay(dateStr); 
-                        setEditZoneId(zonesList[0]?.id || 0); 
-                        setEditMsg(null); 
-                      }} 
-                      style={styles.editBtn}
-                    >
-                      <Edit />
-                    </button>
                   )}
                 </div>
               );
@@ -541,10 +629,13 @@ export default function CalendarWeek() {
                       <div
                         key={e.id}
                         onClick={e.clickable ? () => {
-                          const s = slots.find(s => `slot-${s.start}-${s.end}-${s.zone}` === e.id);
-                          if (s) {
-                            setSelectedSlot(s as any);
-                            setModalOpen(true);
+                          if (e.kind === 'slot') {
+                            const s = slots.find(s => `slot-${s.start}-${s.end}-${s.zone}` === e.id);
+                            if (s) { setSelectedSlot(s as any); setModalOpen(true); }
+                          } else if (e.kind === 'booking') {
+                            const idStr = e.id.replace('bk-', '');
+                            const b = bookings.find(x => String(x.id) === idStr);
+                            if (b) setOpenBooking(b);
                           }
                         } : undefined}
                         style={{
@@ -560,9 +651,14 @@ export default function CalendarWeek() {
                         title={`${e.title} · ${e.zone}${e.subtitle ? ` · ${e.subtitle}` : ''}`}
                       >
                         <div style={styles.eventTitle}>{e.title}</div>
-                        <div style={styles.eventZone}>{e.zone}</div>
-                        {e.subtitle && (
-                          <div style={styles.eventSubtitle}>{e.subtitle}</div>
+                        {/* Sur les créneaux (slot), n'afficher que l'heure (pas la zone, pas la liste staff) */}
+                        {e.kind === 'booking' && (
+                          <>
+                            <div style={styles.eventZone}>{e.zone}</div>
+                            {e.subtitle && (
+                              <div style={styles.eventSubtitle}>{e.subtitle}</div>
+                            )}
+                          </>
                         )}
                       </div>
                     );
@@ -579,6 +675,12 @@ export default function CalendarWeek() {
         onClose={() => setModalOpen(false)}
         slot={selectedSlot}
         staffMap={staffMap}
+      />
+      <BookingDetailsModal
+        open={!!openBooking}
+        onClose={()=>setOpenBooking(null)}
+        booking={openBooking}
+        onCanceled={async()=>{ await reloadBookings(); setOpenBooking(null); }}
       />
     </div>
   );
@@ -1071,6 +1173,9 @@ function BookingModal({
   const [notes, setNotes] = useState('');
   const [att, setAtt] = useState('');
   const [staffId, setStaffId] = useState<number | undefined>(undefined);
+  const [isVisio, setIsVisio] = useState(false);
+  const [restaurant, setRestaurant] = useState('');
+  const [city, setCity] = useState('');
   const [loading, setLoading] = useState(false);
   const [ok, setOk] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
@@ -1078,7 +1183,7 @@ function BookingModal({
   useEffect(() => {
     if (open) {
       setName(''); setEmail(''); setTel(''); setTitle(''); setNotes(''); setAtt('');
-      setStaffId(undefined); setOk(null); setErr(null); setLoading(false);
+      setStaffId(undefined); setIsVisio(false); setRestaurant(''); setCity(''); setOk(null); setErr(null); setLoading(false);
     }
   }, [open]);
 
@@ -1089,12 +1194,21 @@ function BookingModal({
     try {
       const localStart = dayjs(slot.start).tz('Europe/Paris').format();
       const localEnd = dayjs(slot.end).tz('Europe/Paris').format();
+      // Construit la liste des invités: ajoute l'email client s'il est renseigné
+      const rawInv = att.split(',').map(s => s.trim()).filter(Boolean);
+      const emails = [ ...(email ? [email] : []), ...rawInv ];
+      const seen = new Set<string>();
+      const attendees = emails.filter(e => { const k = e.toLowerCase(); if (seen.has(k)) return false; seen.add(k); return true; });
+
       const body: any = {
         slot_start: localStart, slot_end: localEnd, zone_name: slot.zone,
         client_name: name, client_email: email, client_phone: tel,
-        summary: title, notes,
-        attendees: att.split(',').map(s => s.trim()).filter(Boolean),
+        summary: `DÉMO DIGIRESA (${name||''})`, notes,
+        attendees,
       };
+      body.meeting_mode = isVisio ? 'visio' : 'physique';
+      if (restaurant) body.restaurant_name = restaurant;
+      if (city) body.city = city;
       if (staffId) body.staff_id = staffId;
       const res = await fetch(`${API}/book`, {
         method: 'POST',
@@ -1103,7 +1217,8 @@ function BookingModal({
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data?.detail || data?.error || 'Erreur');
-      setOk(`Réservation confirmée ! ${staffMap[data.staff_id] || `Staff ${data.staff_id}`}`);
+      const meet = data?.meet_link ? ` · Lien Meet: ${data.meet_link}` : '';
+      setOk(`Réservation confirmée ! ${staffMap[data.staff_id] || `Staff ${data.staff_id}`}${meet}`);
     } catch (e: any) {
       setErr(e.message || 'Erreur lors de la réservation');
     } finally {
@@ -1140,15 +1255,27 @@ function BookingModal({
         </div>
 
         <form style={modalStyles.form}>
-          <div style={modalStyles.formGroup}>
-            <label style={modalStyles.label}>Titre de l'événement</label>
-            <input
-              type="text"
-              placeholder="Rendez-vous client..."
-              value={title}
-              onChange={e => setTitle(e.target.value)}
-              style={modalStyles.input}
-            />
+          <div style={modalStyles.formRow}>
+            <div style={modalStyles.formGroup}>
+              <label style={modalStyles.label}>Nom du restaurant</label>
+              <input
+                type="text"
+                placeholder="Ex: Chez Mario"
+                value={restaurant}
+                onChange={e => setRestaurant(e.target.value)}
+                style={modalStyles.input}
+              />
+            </div>
+            <div style={modalStyles.formGroup}>
+              <label style={modalStyles.label}>Ville</label>
+              <input
+                type="text"
+                placeholder="Ex: Narbonne"
+                value={city}
+                onChange={e => setCity(e.target.value)}
+                style={modalStyles.input}
+              />
+            </div>
           </div>
 
           <div style={modalStyles.formRow}>
@@ -1223,6 +1350,14 @@ function BookingModal({
               onChange={e => setAtt(e.target.value)}
               style={modalStyles.input}
             />
+          </div>
+
+          <div style={modalStyles.formGroup}>
+            <label style={modalStyles.label}>Type de rendez-vous</label>
+            <label style={{display:'flex',alignItems:'center',gap:8,fontSize:14}}>
+              <input type="checkbox" checked={isVisio} onChange={e=>setIsVisio(e.target.checked)} />
+              RDV en visio (Google Meet)
+            </label>
           </div>
 
           {ok && (
@@ -1463,3 +1598,38 @@ const modalStyles: any = {
     cursor: 'not-allowed'
   }
 };
+function BookingDetailsModal({ open, onClose, booking, onCanceled }:{ open:boolean; onClose:()=>void; booking:Booking|null; onCanceled:()=>void }){
+  const [err,setErr]=useState<string|null>(null);
+  const [loading,setLoading]=useState(false);
+  if (!open || !booking) return null;
+  async function cancel(){
+    setLoading(true); setErr(null);
+    try{
+      const res = await fetch(`${API}/book/${booking.id}`, { method:'DELETE' });
+      const data = await res.json().catch(()=>({}));
+      if (!res.ok) throw new Error(data?.detail||data?.error||'Annulation impossible');
+      await onCanceled();
+    }catch(e:any){ setErr(e.message||'Erreur'); } finally{ setLoading(false); }
+  }
+  return (
+    <div style={modalStyles.backdrop} onClick={onClose}>
+      <div style={modalStyles.modal} onClick={e=>e.stopPropagation()}>
+        <div style={modalStyles.header}>
+          <h2 style={modalStyles.title}>Détails du rendez-vous</h2>
+          <button onClick={onClose} style={modalStyles.closeBtn}>✕</button>
+        </div>
+        <div style={modalStyles.form}>
+          <div style={{marginBottom:12}}><b>Quand:</b> {new Date(booking.start).toLocaleString('fr-FR')} → {new Date(booking.end).toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'})}</div>
+          <div style={{marginBottom:12}}><b>Zone:</b> {booking.zone}</div>
+          <div style={{marginBottom:12}}><b>Client:</b> {booking.client_name}</div>
+          {booking.staff_name && <div style={{marginBottom:12}}><b>Staff:</b> {booking.staff_name}</div>}
+          {err && <div style={modalStyles.errorMessage}>❌ {err}</div>}
+          <div style={modalStyles.actions}>
+            <button onClick={onClose} style={modalStyles.cancelButton}>Fermer</button>
+            <button onClick={cancel} disabled={loading} style={modalStyles.saveButton}>{loading?'Annulation…':'Annuler le rendez-vous'}</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
