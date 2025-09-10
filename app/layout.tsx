@@ -10,7 +10,15 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en">
-      <body>{children}</body>
+      <body style={{
+        margin: 0,
+        padding: 0,
+        fontFamily: '"Google Sans", "Roboto", -apple-system, BlinkMacSystemFont, sans-serif',
+        backgroundColor: '#f8f9fa',
+        overflowX: 'auto' // Allow horizontal scroll when needed
+      }}>
+        {children}
+      </body>
     </html>
   )
 }
