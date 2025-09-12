@@ -26,6 +26,28 @@ type StaffZoneRule = { id:number; staff_id:number; zone_id:number; weekday:numbe
 type ZoneException = { id:number; zone_id:number; date:string; start_time:string; end_time:string; note?:string };
 type Booking = { id:number; start:string; end:string; zone:string; zone_id:number; staff_name?:string; client_name:string; title?:string; meeting_mode?: 'visio' | 'physique' };
 
+// Événements UI (déplacé au niveau module pour éviter les soucis de parsing dans certaines toolchains)
+type UiEvent = {
+  id: string;
+  kind: 'slot' | 'booking';
+  startISO: string;
+  endISO: string;
+  startMin: number;
+  endMin: number;
+  zone: string;
+  color: string;
+  title: string;
+  subtitle?: string;
+  clickable: boolean;
+  lane?: number;
+  lanesCount?: number;
+};
+
+// Types utilitaires pour éviter les génériques imbriqués complexes dans TSX
+type TimeRange = { start: string; end: string };
+type ZoneRanges = Map<number, TimeRange[]>; // zone_id -> ranges
+type WeekRules = Map<number, ZoneRanges>;   // weekday -> ZoneRanges
+
 export default function CalendarWeek() {
   function weekStartMonday(base: any){
     const s = dayjs(base).startOf('week');
@@ -62,6 +84,8 @@ export default function CalendarWeek() {
   const [modalOpen, setModalOpen] = useState(false);
   const [selectedSlot, setSelectedSlot] = useState<Slot | null>(null);
   const [openBooking, setOpenBooking] = useState<Booking | null>(null);
+  const [tempSelect, setTempSelect] = useState<{ startISO: string; endISO: string } | null>(null);
+  const [dragState, setDragState] = useState<{ dayKey: string; startMin: number; mouseY: number } | null>(null);
   // Garde-fou pour éviter les divergences SSR/CSR (hydration)
   const [mounted, setMounted] = useState(false);
   useEffect(() => { setMounted(true); }, []);
@@ -194,7 +218,7 @@ export default function CalendarWeek() {
 
   // Règles des zones par weekday
   const rulesByWeekday = useMemo(() => {
-    const map = new Map<number, Map<number, Array<{ start: string; end: string }>>>();
+    const map: WeekRules = new Map();
 
     const feed = (arr: Array<{ zone_id:number; weekday:number; start_time:string; end_time:string }>) => {
       for (const r of arr) {
@@ -239,7 +263,7 @@ export default function CalendarWeek() {
 
   // Exceptions par date
   const exceptionsByDate = useMemo(() => {
-    const map = new Map<string, Map<number, Array<{start:string;end:string}>>>();
+    const map: Map<string, Map<number, {start:string;end:string}[]>> = new Map();
     for (const e of zoneExceptions) {
       if (!map.has(e.date)) map.set(e.date, new Map());
       const m = map.get(e.date)!;
@@ -277,11 +301,6 @@ export default function CalendarWeek() {
   }, [slots, zoneFilter, staffFilter]);
 
   // Événements UI
-  type UiEvent = {
-    id: string; kind: 'slot' | 'booking'; startISO: string; endISO: string;
-    startMin: number; endMin: number; zone: string; color: string; title: string; subtitle?: string; clickable: boolean;
-    lane?: number; lanesCount?: number;
-  };
   
   function minutesFromStart(d: dayjs.Dayjs) {
     const t = d.tz('Europe/Paris');
@@ -290,53 +309,52 @@ export default function CalendarWeek() {
   
   function eventsForDay(day: dayjs.Dayjs): UiEvent[] {
     const evts: UiEvent[] = [];
-    // Regroupe les créneaux par (start,end) quand aucune zone n'est sélectionnée
-    const groups = new Map<string, { startISO:string; endISO:string; zones:Set<string>; staff:Set<string> }>();
+    // Construire des plages de disponibilité (union), puis générer les plages indispo (gris)
+    const intervals: Array<{start:string; end:string}> = [];
     for (const s of filteredSlots) {
-      const ds = dayjs(s.start).tz('Europe/Paris');
-      if (!ds.isSame(day, 'day')) continue;
+      const ds = dayjs(s.start).tz('Europe/Paris'); if (!ds.isSame(day, 'day')) continue;
       const de = dayjs(s.end).tz('Europe/Paris');
       const dateStr = day.tz('Europe/Paris').format('YYYY-MM-DD');
       const half: 'morning'|'afternoon' = ds.hour() < 13 ? 'morning' : 'afternoon';
       const sel = selectedZoneFor(dateStr, half);
       if (sel && s.zone !== sel) continue;
-
-      if (!sel) {
-        const key = `${s.start}|${s.end}`;
-        if (!groups.has(key)) groups.set(key, { startISO: s.start, endISO: s.end, zones: new Set(), staff: new Set() });
-        const g = groups.get(key)!;
-        g.zones.add(s.zone);
-        const names = (s.available_staff_names && s.available_staff_names.length
-          ? s.available_staff_names
-          : (s.available_staff_ids||[]).map(id => staffMap[id] || `Staff ${id}`));
-        for (const n of names) g.staff.add(n);
+      intervals.push({ start: s.start, end: s.end });
+    }
+    // Merge intervals
+    intervals.sort((a,b)=> Date.parse(a.start)-Date.parse(b.start));
+    const merged: Array<{start:string; end:string}> = [];
+    for (const it of intervals) {
+      if (!merged.length) { merged.push({ ...it }); continue; }
+      const last = merged[merged.length-1];
+      if (Date.parse(it.start) <= Date.parse(last.end)) {
+        if (Date.parse(it.end) > Date.parse(last.end)) last.end = it.end;
       } else {
-        // Sélection de zone active → affiche le créneau pour cette zone uniquement (pas de regroupement)
-        const zc = (zoneByName[s.zone]?.color) || '#4285f4';
-        const title = `${ds.format('HH:mm')} → ${de.format('HH:mm')}`;
-        const subtitle = (s.available_staff_names && s.available_staff_names.length
-          ? s.available_staff_names
-          : s.available_staff_ids.map(id => staffMap[id] || `Staff ${id}`)
-        ).join(', ');
-        evts.push({
-          id: `slot-${s.start}-${s.end}-${s.zone}`,
-          kind: 'slot', startISO: s.start, endISO: s.end,
-          startMin: minutesFromStart(ds), endMin: minutesFromStart(de),
-          zone: s.zone, color: zc, title, subtitle, clickable: true
-        });
+        merged.push({ ...it });
       }
     }
-    // Ajoute les événements regroupés (si aucune zone sélectionnée pour la demi-journée)
-    for (const g of groups.values()) {
-      const ds = dayjs(g.startISO).tz('Europe/Paris');
-      const de = dayjs(g.endISO).tz('Europe/Paris');
-      const title = `${ds.format('HH:mm')} → ${de.format('HH:mm')}`;
-      const subtitle = Array.from(g.staff).join(', ');
+    // Complément dans la journée (indispo grisé)
+    const dayStart = day.tz('Europe/Paris').hour(hourStart).minute(0).second(0).millisecond(0);
+    const dayEnd   = day.tz('Europe/Paris').hour(hourEnd).minute(0).second(0).millisecond(0);
+    let cursorMin = minutesFromStart(dayStart);
+    for (const m of merged) {
+      const ms = minutesFromStart(dayjs(m.start).tz('Europe/Paris'));
+      if (ms > cursorMin) {
+        evts.push({
+          id: `unavail-${cursorMin}-${ms}`,
+          kind: 'slot', startISO: dayStart.add(cursorMin,'minute').toISOString(), endISO: dayStart.add(ms,'minute').toISOString(),
+          startMin: cursorMin, endMin: ms,
+          zone: '', color: '#e5e7eb', title: '', subtitle: undefined, clickable: false
+        });
+      }
+      cursorMin = minutesFromStart(dayjs(m.end).tz('Europe/Paris'));
+    }
+    const endMinDay = minutesFromStart(dayEnd);
+    if (cursorMin < endMinDay) {
       evts.push({
-        id: `slotg-${g.startISO}-${g.endISO}`,
-        kind: 'slot', startISO: g.startISO, endISO: g.endISO,
-        startMin: minutesFromStart(ds), endMin: minutesFromStart(de),
-        zone: Array.from(g.zones).join(' / '), color: '#6b21a8', title, subtitle, clickable: true
+        id: `unavail-${cursorMin}-${endMinDay}`,
+        kind: 'slot', startISO: dayStart.add(cursorMin,'minute').toISOString(), endISO: dayStart.add(endMinDay,'minute').toISOString(),
+        startMin: cursorMin, endMin: endMinDay,
+        zone: '', color: '#e5e7eb', title: '', subtitle: undefined, clickable: false
       });
     }
     for (const b of bookings) {
@@ -379,9 +397,6 @@ export default function CalendarWeek() {
   function prevWeek() { setWeekStart(weekStart.subtract(7, 'day')); }
   function nextWeek() { setWeekStart(weekStart.add(7, 'day')); }
   function goToday() { setWeekStart(weekStartMonday(dayjs())); }
-
-  // Evite tout rendu côté serveur pour prévenir les écarts SSR/CSR (dates, TZ, etc.)
-  if (!mounted) return <div suppressHydrationWarning />;
 
   return (
     <div style={styles.container}>
@@ -631,21 +646,53 @@ export default function CalendarWeek() {
                     return (
                       <div
                         key={e.id}
-                        onClick={e.clickable ? () => {
+                        onClick={e.clickable ? (ev) => {
                           if (e.kind === 'slot') {
-                            const s = slots.find(s => `slot-${s.start}-${s.end}-${s.zone}` === e.id);
-                            if (s) { setSelectedSlot(s as any); setModalOpen(true); }
+                            if (e.id.startsWith('unavail-')) {
+                              return; // non cliquable
+                            }
+                            // Calculer l'heure cliquée dans la colonne pour créer un aperçu
+                              const rect = (ev.currentTarget as HTMLDivElement).getBoundingClientRect();
+                              const y = ev.clientY - rect.top; // px par rapport au top du bloc
+                              const minutesFromColumnStart = Math.max(0, Math.min(((y / PX_PER_HOUR) * 60), (hourEnd-hourStart)*60));
+                              const step = Number(settings?.booking_step_min ?? 15);
+                              const dur = Number(settings?.default_duration_min ?? 30);
+                              const snapped = Math.floor(minutesFromColumnStart / step) * step;
+                              const startPick = day.tz('Europe/Paris').hour(hourStart).minute(0).second(0).millisecond(0).add(snapped,'minute');
+                              const finalStart = startPick;
+                              const finalEnd = finalStart.add(dur, 'minute');
+
+                              const dateStr = finalStart.format('YYYY-MM-DD');
+                              const half: 'morning'|'afternoon' = finalStart.hour() < 13 ? 'morning' : 'afternoon';
+                              const sel = selectedZoneFor(dateStr, half);
+
+                              let chosenZone = sel || '';
+                              // Déterminer une zone candidate si non sélectionnée
+                              if (!chosenZone) {
+                                const cand = slots.find(s => {
+                                  const ds = dayjs(s.start).tz('Europe/Paris');
+                                  const de = dayjs(s.end).tz('Europe/Paris');
+                                  return ds.isSame(finalStart,'day') && finalStart.toDate() >= ds.toDate() && finalEnd.toDate() <= de.toDate();
+                                });
+                                chosenZone = cand?.zone || zonesList[0]?.name || '';
+                              }
+                              const slotObj: Slot = { start: finalStart.toISOString(), end: finalEnd.toISOString(), zone: chosenZone, zone_id: zonesList.find(z=>z.name===chosenZone)?.id, available_staff_ids: [] };
+                              setTempSelect({ startISO: slotObj.start, endISO: slotObj.end });
+                            } else {
+                              const s = slots.find(s => `slot-${s.start}-${s.end}-${s.zone}` === e.id);
+                              if (s) { setTempSelect({ startISO: s.start, endISO: s.end }); }
+                            }
                           } else if (e.kind === 'booking') {
                             const idStr = e.id.replace('bk-', '');
                             const b = bookings.find(x => String(x.id) === idStr);
                             if (b) setOpenBooking(b);
                           }
                         } : undefined}
-                        style={{
-                          ...styles.event,
-                          ...(e.kind === 'slot' ? styles.eventSlot : styles.eventBooking),
-                          top,
-                          left: `${leftPct}%`,
+                          style={{
+                            ...styles.event,
+                            ...(e.kind === 'slot' ? styles.eventSlot : styles.eventBooking),
+                            top,
+                            left: `${leftPct}%`,
                           width: `${widthPct}%`,
                           height,
                           backgroundColor: e.color,
@@ -672,6 +719,29 @@ export default function CalendarWeek() {
           </div>
         </div>
       </main>
+
+      {/* Sélection temporaire façon Google Calendar */}
+      {tempSelect && (
+        <div style={{position:'fixed', left:0, top:0, right:0, bottom:0, pointerEvents:'none'}}>
+          {/* Indication simple; la carte réelle est dessinée dans la colonne via calcul, pour simplifier on montre juste un bar de confirmation */}
+          <div style={{position:'fixed', bottom:20, left:'50%', transform:'translateX(-50%)', background:'#fff', border:'1px solid #e5e7eb', borderRadius:8, padding:10, display:'flex', gap:8, pointerEvents:'auto', boxShadow:'0 4px 12px rgba(0,0,0,0.1)'}}>
+            <span style={{fontSize:12}}>Sélection: {new Date(tempSelect.startISO).toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'})} → {new Date(tempSelect.endISO).toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'})}</span>
+            <button onClick={()=>{ setTempSelect(null); }} style={styles.cancelBtn}>Annuler</button>
+            <button onClick={()=>{
+              const dateStr = dayjs(tempSelect.startISO).tz('Europe/Paris').format('YYYY-MM-DD');
+              const half: 'morning'|'afternoon' = dayjs(tempSelect.startISO).tz('Europe/Paris').hour() < 13 ? 'morning' : 'afternoon';
+              const sel = selectedZoneFor(dateStr, half);
+              let chosenZone = sel || '';
+              if (!chosenZone){
+                const cand = slots.find(s => tempSelect.startISO>=s.start && tempSelect.endISO<=s.end);
+                chosenZone = cand?.zone || zonesList[0]?.name || '';
+              }
+              const slotObj: Slot = { start: tempSelect.startISO, end: tempSelect.endISO, zone: chosenZone, zone_id: zonesList.find(z=>z.name===chosenZone)?.id, available_staff_ids: [] };
+              setSelectedSlot(slotObj); setModalOpen(true); setTempSelect(null);
+            }} style={styles.saveBtn}>Valider</button>
+          </div>
+        </div>
+      )}
 
       <BookingModal
         open={modalOpen}
@@ -1630,6 +1700,83 @@ function BookingDetailsModal({ open, onClose, booking, onCanceled }:{ open:boole
           <div style={modalStyles.actions}>
             <button onClick={onClose} style={modalStyles.cancelButton}>Fermer</button>
             <button onClick={cancel} disabled={loading} style={modalStyles.saveButton}>{loading?'Annulation…':'Annuler le rendez-vous'}</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+function StartPickerModal({ open, onClose, band, onConfirm, settings, dayZoneSel, zonesList, slots }:{ open:boolean; onClose:()=>void; band:{startISO:string; endISO:string} | null; onConfirm:(slot: any)=>void; settings:any; dayZoneSel:any; zonesList:any[]; slots: Slot[] }){
+  const [time, setTime] = useState('');
+  const [zoneName, setZoneName] = useState<string>('');
+  if (!open || !band) return null;
+  const step = Number(settings?.booking_step_min ?? 15);
+  const dur = Number(settings?.default_duration_min ?? 30);
+  const start = dayjs(band.startISO).tz('Europe/Paris');
+  const end   = dayjs(band.endISO).tz('Europe/Paris');
+  const options: string[] = [];
+  let t = start.clone();
+  while (t.add(dur,'minute').diff(end) <= 0){
+    options.push(t.format('HH:mm'));
+    t = t.subtract(dur,'minute').add(step,'minute');
+  }
+  const dateStr = start.format('YYYY-MM-DD');
+  const half: 'morning'|'afternoon' = start.hour() < 13 ? 'morning' : 'afternoon';
+  const selectedZone = dayZoneSel?.[dateStr]?.[half];
+  // Zones candidates à l'heure choisie
+  const zoneOptions = useMemo(()=>{
+    if (selectedZone) return [selectedZone];
+    if (!time) return [];
+    const pick = dayjs(`${dateStr}T${time}:00`).tz('Europe/Paris');
+    const pickEnd = pick.add(dur,'minute');
+    const set = new Set<string>();
+    for (const s of slots){
+      const ds = dayjs(s.start).tz('Europe/Paris'); const de = dayjs(s.end).tz('Europe/Paris');
+      if (!ds.isSame(start,'day')) continue;
+      if (!(pickEnd.toDate() <= de.toDate() && pick.toDate() >= ds.toDate())) continue;
+      set.add(s.zone);
+    }
+    return Array.from(set);
+  },[time, slots, dateStr, dur, start, selectedZone]);
+
+  function confirm(){
+    const startPick = dayjs(`${dateStr}T${time}:00`).tz('Europe/Paris');
+    const endPick = startPick.add(dur,'minute');
+    const zone = selectedZone || zoneName || zoneOptions[0] || '';
+    // Trouver un slot existant correspondant
+    const s = slots.find(s=> s.zone===zone && s.start===startPick.toISOString());
+    if (s) return onConfirm(s);
+    // Sinon, construire minimal
+    onConfirm({ start: startPick.toISOString(), end: endPick.toISOString(), zone, available_staff_ids: [], zone_id: undefined });
+  }
+
+  return (
+    <div style={modalStyles.backdrop} onClick={onClose}>
+      <div style={modalStyles.modal} onClick={e=>e.stopPropagation()}>
+        <div style={modalStyles.header}>
+          <h2 style={modalStyles.title}>Choisir l'heure</h2>
+          <button onClick={onClose} style={modalStyles.closeBtn}>✕</button>
+        </div>
+        <div style={modalStyles.form}>
+          <label style={{display:'flex', gap:8, alignItems:'center'}}>
+            <span>Heure de début</span>
+            <select value={time} onChange={e=>setTime(e.target.value)} style={modalStyles.select}>
+              <option value="">—</option>
+              {options.map(opt=> <option key={opt} value={opt}>{opt}</option>)}
+            </select>
+          </label>
+          {!selectedZone && (
+            <label style={{display:'flex', gap:8, alignItems:'center'}}>
+              <span>Zone</span>
+              <select value={zoneName} onChange={e=>setZoneName(e.target.value)} style={modalStyles.select}>
+                <option value="">—</option>
+                {zoneOptions.map(name=> <option key={name} value={name}>{name}</option>)}
+              </select>
+            </label>
+          )}
+          <div style={modalStyles.actions}>
+            <button onClick={onClose} style={modalStyles.cancelButton}>Annuler</button>
+            <button onClick={confirm} disabled={!time || (!selectedZone && !zoneName && !zoneOptions.length)} style={modalStyles.saveButton}>Continuer</button>
           </div>
         </div>
       </div>
