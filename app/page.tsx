@@ -1,5 +1,6 @@
 'use client';
 import { useEffect, useMemo, useState, useCallback } from 'react';
+import PinGate from './components/PinGate';
 import dayjs from 'dayjs';
 import utc from 'dayjs/plugin/utc';
 import tz from 'dayjs/plugin/timezone';
@@ -318,7 +319,7 @@ export default function CalendarWeek() {
         zone_id: b.zone_id,
         staffId: Number(sid) || undefined,
         color: bgColor,
-        title: isVisio ? '🎥 Visio' : `📍 ${b.zone}`,
+        title: isVisio ? '🎥VISIO' : `📍 ${b.zone}`,
         subtitle: b.restaurant_name || b.client_name || '',
         clickable: true,
         lane,
@@ -343,6 +344,7 @@ export default function CalendarWeek() {
   if (!mounted) return <div suppressHydrationWarning />;
 
   return (
+    <PinGate>
     <div style={styles.container}>
       {/* Header moderne */}
       <header style={styles.header}>
@@ -386,12 +388,7 @@ export default function CalendarWeek() {
               ))}
             </div>
             
-            <div style={styles.headerActions}>
-              <a href="/admin" style={styles.adminButton}>
-                <SettingsIcon />
-                Admin
-              </a>
-            </div>
+           
           </div>
         </div>
       </header>
@@ -408,18 +405,19 @@ export default function CalendarWeek() {
         <div style={styles.calendarWrapper}>
           {/* Légende */}
           <div style={styles.legend}>
-            <div style={styles.legendItem}>
-              <div style={{...styles.legendDot, backgroundColor: '#34a853'}}></div>
-              <span>Disponible</span>
-            </div>
-          
-            <div style={styles.legendItem}>
-              <div style={{...styles.legendDot, backgroundColor: '#1a73e8'}}></div>
-              <span>RDV Physique</span>
-            </div>
-            <div style={styles.legendItem}>
-              <div style={{...styles.legendDot, backgroundColor: '#8ab4f8'}}></div>
-              <span>RDV Visio</span>
+            <div style={{display:'flex', alignItems:'center', gap:16}}>
+              <div style={styles.legendItem}>
+                <div style={{...styles.legendDot, backgroundColor: '#34a853'}}></div>
+                <span>Disponible</span>
+              </div>
+              <div style={styles.legendItem}>
+                <div style={{...styles.legendDot, backgroundColor: '#1a73e8'}}></div>
+                <span>RDV Physique</span>
+              </div>
+              <div style={styles.legendItem}>
+                <div style={{...styles.legendDot, backgroundColor: '#8ab4f8'}}></div>
+                <span>RDV Visio</span>
+              </div>
             </div>
           </div>
 
@@ -626,6 +624,7 @@ export default function CalendarWeek() {
         open={!!openBooking}
         onClose={() => setOpenBooking(null)}
         booking={openBooking}
+        settings={settings}
         onCanceled={async () => {
           await reloadBookings();
           loadWeekData();
@@ -633,6 +632,7 @@ export default function CalendarWeek() {
         }}
       />
     </div>
+    </PinGate>
   );
 }
 
@@ -869,6 +869,7 @@ const styles: any = {
     display: 'flex',
     alignItems: 'center',
     gap: '24px',
+    justifyContent: 'space-between',
     padding: '12px 24px',
     backgroundColor: '#f8f9fa',
     borderBottom: '1px solid #e8eaed',
@@ -1103,8 +1104,8 @@ const styles: any = {
   event: {
     position: 'absolute',
     borderRadius: '4px',
-    padding: '8px 12px', // Plus de padding
-    fontSize: '13px', // Plus gros texte
+    padding: '4px 8px', // Plus de padding
+    fontSize: '10px', // Plus gros texte
     color: '#ffffff',
     overflow: 'hidden',
     cursor: 'pointer',
@@ -1143,18 +1144,18 @@ const styles: any = {
 
   eventTitle: {
     fontWeight: 600,
-    fontSize: '14px', // Plus gros
-    lineHeight: '16px'
+    fontSize: '9px', // Plus gros
+    lineHeight: '9px'
   },
 
   eventSubtitle: {
-    fontSize: '12px', // Plus gros
+    fontSize: '9px', // Plus gros
     opacity: 0.9,
-    lineHeight: '14px'
+    lineHeight: '9px'
   },
 
   eventTime: {
-    fontSize: '11px', // Plus gros
+    fontSize: '9px', // Plus gros
     opacity: 0.8,
     lineHeight: '13px',
     marginTop: 'auto'
@@ -1166,15 +1167,34 @@ function BookingDetailsModal({
   open, 
   onClose, 
   booking, 
-  onCanceled 
+  onCanceled,
+  settings
 }: { 
   open: boolean; 
   onClose: () => void; 
   booking: Booking | null; 
-  onCanceled: () => void 
+  onCanceled: () => void,
+  settings: any
 }) {
   const [err, setErr] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [editMode, setEditMode] = useState(false);
+  const [staffs, setStaffs] = useState<{id:number;name:string}[]>([]);
+  const [startISO, setStartISO] = useState<string>('');
+  const [endISO, setEndISO] = useState<string>('');
+  const [staffId, setStaffId] = useState<number|undefined>(undefined);
+  const [mode, setMode] = useState<'visio'|'physique'|undefined>(undefined);
+  
+  useEffect(()=>{
+    if (open && booking){
+      setStartISO(booking.start);
+      setEndISO(booking.end);
+      setStaffId(booking.staff_id);
+      setMode(booking.meeting_mode);
+      fetch(`${API}/admin/staff`).then(r=>r.json()).then(a=>{ if(Array.isArray(a)) setStaffs(a); }).catch(()=>{});
+    }
+  },[open, booking]);
   
   if (!open || !booking) return null;
 
@@ -1191,6 +1211,58 @@ function BookingDetailsModal({
     } finally {
       setLoading(false);
     }
+  }
+
+  function toLocalInput(iso: string) {
+    try {
+      const d = new Date(iso);
+      const pad = (n: number) => ('0' + n).slice(-2);
+      const yyyy = d.getFullYear();
+      const mm = pad(d.getMonth() + 1);
+      const dd = pad(d.getDate());
+      const hh = pad(d.getHours());
+      const mi = pad(d.getMinutes());
+      return yyyy + '-' + mm + '-' + dd + 'T' + hh + ':' + mi;
+    } catch { return ''; }
+  }
+
+  function fromLocalInput(val: string) {
+    if (!val) return '' as any;
+    const d = new Date(val);
+    const t = d.getTime() - d.getTimezoneOffset() * 60000;
+    return new Date(t).toISOString();
+  }
+
+  function shift(minutes:number){
+    const s = new Date(startISO); const e = new Date(endISO);
+    setStartISO(new Date(s.getTime()+minutes*60000).toISOString());
+    setEndISO(new Date(e.getTime()+minutes*60000).toISOString());
+  }
+
+  async function saveChanges(){
+    if (!booking) return;
+    setSaving(true); setErr(null);
+    try {
+      const body:any = {
+        slot_start: new Date(startISO).toISOString(),
+        slot_end: new Date(endISO).toISOString(),
+        zone_name: booking.zone,
+        client_name: booking.client_name,
+        summary: booking.title || '',
+        meeting_mode: mode || booking.meeting_mode || 'physique'
+      };
+      if (booking.restaurant_name) body.restaurant_name = booking.restaurant_name;
+      if (booking.city) body.city = booking.city;
+      if (staffId) body.staff_id = staffId;
+      const res = await fetch(`${API}/book`,{ method:'POST', headers:{'Content-Type':'application/json','Idempotency-Key':crypto.randomUUID()}, body: JSON.stringify(body)});
+      const data = await res.json().catch(()=>({}));
+      if (!res.ok) throw new Error(data?.detail || data?.error || 'Erreur lors de l\'enregistrement');
+      // annuler l'ancien
+      await fetch(`${API}/book/${booking.id}`, { method:'DELETE' });
+      await onCanceled();
+      onClose();
+    } catch(e:any){ setErr(e.message||'Erreur'); }
+    finally { setSaving(false); }
   }
 
   return (
@@ -1257,6 +1329,36 @@ function BookingDetailsModal({
                 </span>
               </div>
             )}
+            {editMode && (
+              <div style={{marginTop:12, display:'grid', gap:8}}>
+                <div style={{display:'flex', gap:8, alignItems:'center'}}>
+                  <button onClick={()=>shift(-15)} style={modalStyles.secondaryButton}>-15 min</button>
+                  <button onClick={()=>shift(15)} style={modalStyles.secondaryButton}>+15 min</button>
+                  <span style={{fontSize:12,color:'#6b7280'}}>{new Date(startISO).toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'})} → {new Date(endISO).toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'})}</span>
+                </div>
+                <div style={{display:'flex', gap:8}}>
+                  <select value={staffId||0} onChange={e=>setStaffId(Number(e.target.value)||undefined)} style={modalStyles.inputSmall}>
+                    <option value={0}>Conseiller (inchangé)</option>
+                    {staffs.map(s=>(<option key={s.id} value={s.id}>{s.name}</option>))}
+                  </select>
+                  <select value={mode||''} onChange={e=>setMode((e.target.value||'') as any)} style={modalStyles.inputSmall}>
+                    <option value="">Type (inchangé)</option>
+                    <option value="physique" disabled={(new Date(endISO).getTime()-new Date(startISO).getTime())/60000 < Number(settings?.demo_physique_duration_min ?? settings?.default_duration_min ?? 30)}>Physique</option>
+                    <option value="visio">Visio</option>
+                  </select>
+                </div>
+                <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:8}}>
+                  <div>
+                    <label style={{fontSize:12,color:'#6b7280'}}>Début</label>
+                    <input type="datetime-local" value={toLocalInput(startISO)} onChange={e=>setStartISO(fromLocalInput(e.target.value))} style={modalStyles.inputSmall} />
+                  </div>
+                  <div>
+                    <label style={{fontSize:12,color:'#6b7280'}}>Fin</label>
+                    <input type="datetime-local" value={toLocalInput(endISO)} onChange={e=>setEndISO(fromLocalInput(e.target.value))} style={modalStyles.inputSmall} />
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
           
           {err && (
@@ -1267,6 +1369,12 @@ function BookingDetailsModal({
             <button onClick={onClose} style={modalStyles.cancelButton}>
               Fermer
             </button>
+            {!editMode && (
+              <button onClick={()=>setEditMode(true)} style={modalStyles.primaryButton}>Modifier</button>
+            )}
+            {editMode && (
+              <button onClick={saveChanges} disabled={saving} style={modalStyles.primaryButton}>{saving?'Enregistrement…':'Enregistrer'}</button>
+            )}
             <button 
               onClick={cancel} 
               disabled={loading} 
@@ -1420,5 +1528,30 @@ const modalStyles: any = {
     backgroundColor: '#dadce0',
     color: '#9aa0a6',
     cursor: 'not-allowed'
+  },
+  primaryButton: {
+    padding: '10px 24px',
+    border: 'none',
+    borderRadius: '4px',
+    backgroundColor: '#1a73e8',
+    color: '#ffffff',
+    fontSize: '14px',
+    fontWeight: 500,
+    cursor: 'pointer'
+  },
+  secondaryButton: {
+    padding: '8px 12px',
+    border: '1px solid #dadce0',
+    borderRadius: '4px',
+    backgroundColor: '#ffffff',
+    color: '#3c4043',
+    fontSize: '12px',
+    cursor: 'pointer'
+  },
+  inputSmall: {
+    padding: '8px 12px',
+    border: '1px solid #dadce0',
+    borderRadius: '4px',
+    fontSize: '12px'
   }
 };

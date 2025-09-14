@@ -1,5 +1,6 @@
 'use client';
 import { useEffect, useMemo, useState } from 'react';
+import PinGate from '../components/PinGate';
 
 const API = process.env.NEXT_PUBLIC_API_URL as string;
 
@@ -120,6 +121,7 @@ export default function Admin(){
   }
 
   return (
+    <PinGate>
     <div style={styles.container}>
       <header style={styles.header}>
         <div style={styles.headerContent}>
@@ -129,6 +131,7 @@ export default function Admin(){
           </div>
           <nav style={styles.nav}>
             <a href="/" style={styles.navLink}>← Retour au calendrier</a>
+            <a href="/admin/reminders" style={{...styles.navLink, marginLeft: 8}}>Rappels RDV</a>
           </nav>
         </div>
       </header>
@@ -734,6 +737,7 @@ export default function Admin(){
       )}
       </main>
     </div>
+    </PinGate>
   );
 }
 

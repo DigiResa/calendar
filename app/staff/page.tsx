@@ -1,5 +1,6 @@
 'use client';
 import { useEffect, useState, useMemo } from 'react';
+import PinGate from '../components/PinGate';
 import dayjs from 'dayjs';
 import utc from 'dayjs/plugin/utc';
 import tz from 'dayjs/plugin/timezone';
@@ -41,6 +42,7 @@ export default function Staff(){
   },[slots, staffFilter]);
 
   return (
+    <PinGate>
     <div style={styles.container}>
       <header style={styles.header}>
         <div style={styles.headerContent}>
@@ -193,6 +195,7 @@ export default function Staff(){
         staffMap={staffMap}
       />
     </div>
+    </PinGate>
   );
 }
 
