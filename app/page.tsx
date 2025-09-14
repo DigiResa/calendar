@@ -213,7 +213,7 @@ export default function CalendarWeek() {
   }, [weekStart]);
 
   // Jours affichés
-  const days = useMemo(() => Array.from({ length: 6 }, (_, i) => weekStart.add(i + 1, 'day')), [weekStart]); // Lundi à Samedi
+  const days = useMemo(() => Array.from({ length: 6 }, (_, i) => weekStart.add(i, 'day')), [weekStart]); // Lundi à Samedi
 
   // Configuration des heures
   const hourStart = 8;
