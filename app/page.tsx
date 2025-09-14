@@ -213,7 +213,7 @@ export default function CalendarWeek() {
   }, [weekStart]);
 
   // Jours affichés
-  const days = useMemo(() => Array.from({ length: 7 }, (_, i) => weekStart.add(i, 'day')), [weekStart]);
+  const days = useMemo(() => Array.from({ length: 6 }, (_, i) => weekStart.add(i + 1, 'day')), [weekStart]); // Lundi à Samedi
 
   // Configuration des heures
   const hourStart = 8;
@@ -222,7 +222,7 @@ export default function CalendarWeek() {
     () => Array.from({ length: hourEnd - hourStart }, (_, i) => hourStart + i),
     []
   );
-  const PX_PER_HOUR = 60;
+  const PX_PER_HOUR = 80; // Augmenté de 60 à 80px par heure
   const [hoverTime, setHoverTime] = useState<{ day: string; time: string; y: number } | null>(null);
 
   // Événements UI
@@ -427,10 +427,12 @@ export default function CalendarWeek() {
           <div style={styles.calendarGrid}>
             {/* En-tête des jours */}
             <div style={styles.weekHeader}>
-              <div style={styles.timeColumnHeader}></div>
+              <div style={styles.timeColumnHeader}>
+                <div style={styles.timeColumnTitle}>Horaires</div>
+              </div>
               {days.map(day => {
                 const isToday = day.isSame(dayjs(), 'day');
-                const isWeekend = day.day() === 0 || day.day() === 6;
+                const isWeekend = day.day() === 6; // Seulement samedi maintenant
                 
                 return (
                   <div key={day.toString()} style={{
@@ -480,7 +482,7 @@ export default function CalendarWeek() {
               {/* Colonnes des jours */}
               {days.map(day => {
                 const events = eventsForDay(day);
-                const isWeekend = day.day() === 0 || day.day() === 6;
+                const isWeekend = day.day() === 6; // Seulement samedi
                 const now = dayjs().tz('Europe/Paris');
                 const showNowLine = day.isSame(now, 'day');
                 const nowMinutes = showNowLine ? minutesFromStart(now) : -1;
@@ -895,7 +897,7 @@ const styles: any = {
 
   weekHeader: {
     display: 'grid',
-    gridTemplateColumns: '80px repeat(7, 1fr)',
+    gridTemplateColumns: '120px repeat(6, 1fr)', // 6 jours au lieu de 7
     borderBottom: '1px solid #e8eaed',
     backgroundColor: '#ffffff',
     position: 'sticky',
@@ -904,16 +906,28 @@ const styles: any = {
   },
 
   timeColumnHeader: {
-    borderRight: '1px solid #e8eaed'
+    borderRight: '1px solid #e8eaed',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#f8f9fa'
+  },
+
+  timeColumnTitle: {
+    fontSize: '12px',
+    fontWeight: 500,
+    color: '#5f6368',
+    textTransform: 'uppercase',
+    letterSpacing: '0.5px'
   },
 
   dayHeader: {
-    padding: '16px 8px',
+    padding: '20px 12px', // Plus de padding
     borderRight: '1px solid #e8eaed',
     display: 'flex',
     flexDirection: 'column',
     gap: '12px',
-    minHeight: '80px',
+    minHeight: '100px', // Plus haut
     backgroundColor: '#ffffff'
   },
 
@@ -933,18 +947,18 @@ const styles: any = {
   },
 
   dayName: {
-    fontSize: '11px',
+    fontSize: '13px', // Plus gros
     fontWeight: 500,
     color: '#70757a',
     letterSpacing: '0.8px'
   },
 
   dayNumber: {
-    fontSize: '24px',
+    fontSize: '28px', // Plus gros
     fontWeight: 400,
     color: '#3c4043',
-    width: '32px',
-    height: '32px',
+    width: '40px', // Plus grand
+    height: '40px',
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
@@ -968,51 +982,50 @@ const styles: any = {
   },
 
   staffInitial: {
-    width: '20px',
-    height: '20px',
+    width: '28px', // Plus grand
+    height: '28px',
     borderRadius: '50%',
-    backgroundColor: '#e8eaed',
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
-    fontSize: '10px',
+    fontSize: '12px', // Plus gros
     fontWeight: 600,
-    color: '#5f6368'
+    boxShadow: '0 1px 3px rgba(0,0,0,0.2)'
   },
 
   calendarBody: {
     flex: 1,
     display: 'grid',
-    gridTemplateColumns: '80px repeat(7, 1fr)',
+    gridTemplateColumns: '120px repeat(6, 1fr)', // 6 jours au lieu de 7
     overflow: 'auto'
   },
 
   timeColumn: {
     borderRight: '1px solid #e8eaed',
-    backgroundColor: '#ffffff'
+    backgroundColor: '#f8f9fa' // Fond légèrement gris
   },
 
   timeSlot: {
-    height: '60px',
+    height: '80px', // Plus haut (correspond au PX_PER_HOUR)
     display: 'flex',
     alignItems: 'flex-start',
     justifyContent: 'flex-end',
-    paddingRight: '12px',
-    paddingTop: '8px',
+    paddingRight: '16px', // Plus de padding
+    paddingTop: '12px',
     borderBottom: '1px solid #f1f3f4'
   },
 
   timeLabel: {
-    fontSize: '11px',
+    fontSize: '13px', // Plus gros
     color: '#70757a',
-    fontWeight: 400
+    fontWeight: 500
   },
 
   dayColumn: {
     position: 'relative',
     borderRight: '1px solid #e8eaed',
     backgroundColor: '#ffffff',
-    minWidth: '160px'
+    minWidth: '200px' // Plus large
   },
 
   dayColumnWeekend: {
@@ -1020,7 +1033,7 @@ const styles: any = {
   },
 
   hourLine: {
-    height: '60px',
+    height: '80px', // Plus haut
     borderBottom: '1px solid #f1f3f4'
   },
 
@@ -1090,14 +1103,15 @@ const styles: any = {
   event: {
     position: 'absolute',
     borderRadius: '4px',
-    padding: '6px 8px',
-    fontSize: '11px',
+    padding: '8px 12px', // Plus de padding
+    fontSize: '13px', // Plus gros texte
     color: '#ffffff',
     overflow: 'hidden',
     cursor: 'pointer',
     transition: 'all 0.2s ease',
     zIndex: 10,
-    border: '1px solid rgba(255,255,255,0.2)'
+    border: '1px solid rgba(255,255,255,0.2)',
+    minHeight: '32px' // Hauteur minimum plus grande
   },
 
   eventSlot: {
@@ -1129,20 +1143,20 @@ const styles: any = {
 
   eventTitle: {
     fontWeight: 600,
-    fontSize: '12px',
-    lineHeight: '14px'
+    fontSize: '14px', // Plus gros
+    lineHeight: '16px'
   },
 
   eventSubtitle: {
-    fontSize: '11px',
+    fontSize: '12px', // Plus gros
     opacity: 0.9,
-    lineHeight: '13px'
+    lineHeight: '14px'
   },
 
   eventTime: {
-    fontSize: '10px',
+    fontSize: '11px', // Plus gros
     opacity: 0.8,
-    lineHeight: '12px',
+    lineHeight: '13px',
     marginTop: 'auto'
   }
 };
