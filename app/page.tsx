@@ -283,8 +283,8 @@ export default function CalendarWeek() {
             endMin: minutesFromStart(displayEnd),
             zone: '',
             zone_id: undefined,
-            color: isShort ? '#fbbc04' : '#34a853',
-            title: isShort ? 'Visio uniquement' : 'Disponible',
+            color: isShort ? '#34a853' : '#34a853',
+            title: isShort ? 'Dispo (Visio)' : 'Disponible',
             clickable: true,
             staffId: Number(staffId),
             lane,
@@ -412,10 +412,7 @@ export default function CalendarWeek() {
               <div style={{...styles.legendDot, backgroundColor: '#34a853'}}></div>
               <span>Disponible</span>
             </div>
-            <div style={styles.legendItem}>
-              <div style={{...styles.legendDot, backgroundColor: '#fbbc04'}}></div>
-              <span>Visio uniquement</span>
-            </div>
+          
             <div style={styles.legendItem}>
               <div style={{...styles.legendDot, backgroundColor: '#1a73e8'}}></div>
               <span>RDV Physique</span>
@@ -805,7 +802,7 @@ const styles: any = {
     alignItems: 'center',
     justifyContent: 'center',
     color: '#ffffff',
-    fontSize: '12px',
+    fontSize: '11px',
     fontWeight: 600
   },
 
@@ -1006,7 +1003,7 @@ const styles: any = {
   },
 
   timeLabel: {
-    fontSize: '12px',
+    fontSize: '11px',
     color: '#70757a',
     fontWeight: 400
   },
@@ -1094,7 +1091,7 @@ const styles: any = {
     position: 'absolute',
     borderRadius: '4px',
     padding: '6px 8px',
-    fontSize: '12px',
+    fontSize: '11px',
     color: '#ffffff',
     overflow: 'hidden',
     cursor: 'pointer',
