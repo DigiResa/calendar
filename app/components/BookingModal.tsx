@@ -208,47 +208,47 @@ export default function BookingModal({
   }
 
   return (
-    <div style={modalStyles.backdrop} onClick={onClose}>
-      <div style={modalStyles.modal} onClick={e => e.stopPropagation()}>
-        <div style={modalStyles.header}>
-          <h2 style={modalStyles.title}>Nouvelle réservation</h2>
-          <button onClick={onClose} style={modalStyles.closeBtn}>✕</button>
+    <div style={styles.backdrop} onClick={onClose}>
+      <div style={styles.modal} onClick={e => e.stopPropagation()}>
+        <div style={styles.header}>
+          <h2 style={styles.title}>🎉 Nouvelle réservation</h2>
+          <button onClick={onClose} style={styles.closeBtn}>✕</button>
         </div>
 
-        <div style={modalStyles.timeInfo}>
-          <div style={modalStyles.timeIcon}>🕐</div>
+        <div style={styles.timeInfo}>
+          <div style={styles.timeIcon}>🕐</div>
           <div>
-            <div style={modalStyles.timeText}>
+            <div style={styles.timeText}>
               {new Date(slot.start).toLocaleDateString('fr-FR', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
             </div>
-            <div style={modalStyles.timeRange}>
+            <div style={styles.timeRange}>
               {new Date(slot.start).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}
               {' '}–{' '}
               {new Date(slot.end).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}
             </div>
             {!isVisio && (
-              <div style={modalStyles.zoneInfo}>Zone: {zoneName || slot.zone}</div>
+              <div style={styles.zoneInfo}>📍 Zone: {zoneName || slot.zone}</div>
             )}
           </div>
         </div>
 
         {/* Étape 1: choix du type de RDV */}
         {step===1 && (
-          <div style={{padding:'24px', display:'grid', gap:16}}>
-            <div style={{fontSize:14, color:'#5f6368'}}>Sélectionnez le type de rendez-vous</div>
-            <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:16}}>
-              <button type="button" onClick={()=>{ setIsVisio(true); setStep(2); }} style={modalStyles.choiceCard}>
-                <div style={modalStyles.choiceIcon}>🎥</div>
+          <div style={styles.content}>
+            <div style={styles.stepTitle}>Quel type de rendez-vous ? 🤔</div>
+            <div style={styles.choicesContainer}>
+              <button type="button" onClick={()=>{ setIsVisio(true); setStep(2); }} style={styles.choiceCard}>
+                <div style={styles.choiceIcon}>🎥</div>
                 <div>
-                  <div style={modalStyles.choiceTitle}>RDV en visio</div>
-                  <div style={modalStyles.choiceDesc}>Google Meet, pas de zone requise</div>
+                  <div style={styles.choiceTitle}>RDV en visio</div>
+                  <div style={styles.choiceDesc}>Par internet avec Google Meet</div>
                 </div>
               </button>
-              <button type="button" onClick={()=>{ setIsVisio(false); setStep(2); }} style={modalStyles.choiceCard}>
-                <div style={modalStyles.choiceIcon}>📍</div>
+              <button type="button" onClick={()=>{ setIsVisio(false); setStep(2); }} style={styles.choiceCard}>
+                <div style={styles.choiceIcon}>📍</div>
                 <div>
-                  <div style={modalStyles.choiceTitle}>RDV physique</div>
-                  <div style={modalStyles.choiceDesc}>Nécessite une zone d'intervention</div>
+                  <div style={styles.choiceTitle}>RDV en personne</div>
+                  <div style={styles.choiceDesc}>Dans un lieu physique</div>
                 </div>
               </button>
             </div>
@@ -257,44 +257,44 @@ export default function BookingModal({
 
         {/* Étape 2: formulaire complet */}
         {step===2 && (
-        <form style={modalStyles.form}>
-          <div style={modalStyles.formRow}>
-            <div style={modalStyles.formGroup}>
-              <label style={modalStyles.label}>Nom du restaurant</label>
-              <input type="text" placeholder="Ex: Chez Mario" value={restaurant} onChange={e => setRestaurant(e.target.value)} style={modalStyles.input} />
+        <form style={styles.form}>
+          <div style={styles.formRow}>
+            <div style={styles.formGroup}>
+              <label style={styles.label}>🍽️ Nom du restaurant</label>
+              <input type="text" placeholder="Ex: Chez Mario" value={restaurant} onChange={e => setRestaurant(e.target.value)} style={styles.input} />
             </div>
-            <div style={modalStyles.formGroup}>
-              <label style={modalStyles.label}>Ville</label>
-              <input type="text" placeholder="Ex: Narbonne" value={city} onChange={e => setCity(e.target.value)} style={modalStyles.input} />
+            <div style={styles.formGroup}>
+              <label style={styles.label}>🏙️ Ville</label>
+              <input type="text" placeholder="Ex: Narbonne" value={city} onChange={e => setCity(e.target.value)} style={styles.input} />
             </div>
           </div>
 
-          <div style={modalStyles.formRow}>
-            <div style={modalStyles.formGroup}>
-              <label style={modalStyles.label}>Nom du client *</label>
-              <input type="text" placeholder="Jean Dupont" value={name} onChange={e => setName(e.target.value)} style={modalStyles.input} required />
+          <div style={styles.formRow}>
+            <div style={styles.formGroup}>
+              <label style={styles.label}>👤 Nom du client *</label>
+              <input type="text" placeholder="Jean Dupont" value={name} onChange={e => setName(e.target.value)} style={styles.input} required />
             </div>
-            <div style={modalStyles.formGroup}>
-              <label style={modalStyles.label}>Type de rendez-vous</label>
-              <div style={{display:'flex', alignItems:'center', gap:8, fontSize:14}}>
+            <div style={styles.formGroup}>
+              <label style={styles.label}>📅 Type de rendez-vous</label>
+              <div style={styles.typeDisplay}>
                 <span>{isVisio ? 'Visio (Google Meet)' : 'Physique'}</span>
-                <button type="button" onClick={()=>setStep(1)} style={modalStyles.smallLinkButton}>Modifier</button>
+                <button type="button" onClick={()=>setStep(1)} style={styles.changeButton}>Changer</button>
               </div>
             </div>
           </div>
 
-          <div style={modalStyles.formRow}>
-            <div style={modalStyles.formGroup}>
-              <label style={modalStyles.label}>Staff</label>
+          <div style={styles.formRow}>
+            <div style={styles.formGroup}>
+              <label style={styles.label}>👨‍💼 Staff</label>
               {(allowedStaffIds && allowedStaffIds.length > 1) ? (
-                <select value={staffId ?? 0} onChange={e=> setStaffId(Number(e.target.value)||undefined)} style={modalStyles.select}>
+                <select value={staffId ?? 0} onChange={e=> setStaffId(Number(e.target.value)||undefined)} style={styles.select}>
                   <option value={0}>Auto (least-load)</option>
                   {allowedStaffIds.map(id => (
                     <option key={id} value={id}>{staffMap[id] || `Staff ${id}`}</option>
                   ))}
                 </select>
               ) : (
-                <div style={{fontSize:14, padding:'12px 0'}}>
+                <div style={styles.staffDisplay}>
                   {(() => {
                     const sid = staffId ?? allowedStaffIds?.[0];
                     return sid ? (staffMap[sid] || `Staff ${sid}`) : 'Auto (sera attribué)';
@@ -303,52 +303,50 @@ export default function BookingModal({
               )}
             </div>
             {!isVisio && (
-              <div style={modalStyles.formGroup}>
-                <label style={modalStyles.label}>Zone</label>
-                <select value={zoneName} onChange={e=>setZoneName(e.target.value)} style={modalStyles.select}>
+              <div style={styles.formGroup}>
+                <label style={styles.label}>📍 Zone</label>
+                <select value={zoneName} onChange={e=>setZoneName(e.target.value)} style={styles.select}>
                   <option value="" disabled>Choisir une zone</option>
                   {(zoneOptions.length ? zoneOptions : [slot.zone]).map(z => (
                     <option key={z} value={z}>{z}</option>
                   ))}
                 </select>
-                {!zoneName && <div style={{fontSize:12, color:'#9aa0a6', marginTop:6}}>Veuillez choisir une zone</div>}
+                {!zoneName && <div style={styles.helpText}>Veuillez choisir une zone</div>}
                 {zoneName && allowedStaffIds.length===0 && (
-                  <div style={{fontSize:12, color:'#d93025', marginTop:6}}>Aucun staff associé à cette zone pour ce créneau.</div>
+                  <div style={styles.errorText}>Aucun staff associé à cette zone pour ce créneau.</div>
                 )}
               </div>
             )}
           </div>
 
-          <div style={modalStyles.formRow}>
-            <div style={modalStyles.formGroup}>
-              <label style={modalStyles.label}>Email</label>
-              <input type="email" placeholder="jean.dupont@email.com" value={email} onChange={e => setEmail(e.target.value)} style={modalStyles.input} />
+          <div style={styles.formRow}>
+            <div style={styles.formGroup}>
+              <label style={styles.label}>📧 Email</label>
+              <input type="email" placeholder="jean.dupont@email.com" value={email} onChange={e => setEmail(e.target.value)} style={styles.input} />
             </div>
-            <div style={modalStyles.formGroup}>
-              <label style={modalStyles.label}>Téléphone</label>
-              <input type="tel" placeholder="06 12 34 56 78" value={tel} onChange={e => setTel(e.target.value)} style={modalStyles.input} />
+            <div style={styles.formGroup}>
+              <label style={styles.label}>📞 Téléphone</label>
+              <input type="tel" placeholder="06 12 34 56 78" value={tel} onChange={e => setTel(e.target.value)} style={styles.input} />
             </div>
           </div>
 
-          <div style={modalStyles.formGroup}>
-            <label style={modalStyles.label}>Notes</label>
-            <textarea placeholder="Informations complémentaires..." value={notes} onChange={e => setNotes(e.target.value)} style={modalStyles.textarea} rows={3} />
+          <div style={styles.formGroup}>
+            <label style={styles.label}>📝 Notes</label>
+            <textarea placeholder="Informations complémentaires..." value={notes} onChange={e => setNotes(e.target.value)} style={styles.textarea} rows={3} />
           </div>
 
-          <div style={modalStyles.formGroup}>
-            <label style={modalStyles.label}>Invités (emails séparés par des virgules)</label>
-            <input type="text" placeholder="invite1@email.com, invite2@email.com" value={att} onChange={e => setAtt(e.target.value)} style={modalStyles.input} />
+          <div style={styles.formGroup}>
+            <label style={styles.label}>👥 Invités (emails séparés par des virgules)</label>
+            <input type="text" placeholder="invite1@email.com, invite2@email.com" value={att} onChange={e => setAtt(e.target.value)} style={styles.input} />
           </div>
 
-          {/* Type de RDV déjà choisi en étape 1 */}
+          {ok && (<div style={styles.successMessage}>🎉 {ok}</div>)}
+          {err && (<div style={styles.errorMessage}>❌ {err}</div>)}
 
-          {ok && (<div style={modalStyles.successMessage}>✅ {ok}</div>)}
-          {err && (<div style={modalStyles.errorMessage}>❌ {err}</div>)}
-
-          <div style={modalStyles.actions}>
-            <button type="button" onClick={onClose} style={modalStyles.cancelButton}>Annuler</button>
-            <button type="button" onClick={book} disabled={!name || loading || (!isVisio && (!zoneName || allowedStaffIds.length===0))} style={{...modalStyles.saveButton, ...((!name || loading || (!isVisio && (!zoneName || allowedStaffIds.length===0))) ? modalStyles.saveButtonDisabled : {})}}>
-              {loading ? 'Création en cours...' : 'Créer l\'événement'}
+          <div style={styles.actions}>
+            <button type="button" onClick={onClose} style={styles.cancelButton}>❌ Annuler</button>
+            <button type="button" onClick={book} disabled={!name || loading || (!isVisio && (!zoneName || allowedStaffIds.length===0))} style={{...styles.saveButton, ...((!name || loading || (!isVisio && (!zoneName || allowedStaffIds.length===0))) ? styles.saveButtonDisabled : {})}}>
+              {loading ? '⏳ Création en cours...' : '✅ Créer le rendez-vous'}
             </button>
           </div>
         </form>
@@ -358,39 +356,323 @@ export default function BookingModal({
   );
 }
 
-const modalStyles: any = {
-  backdrop: { position: 'fixed', inset: 0, backgroundColor: 'rgba(0, 0, 0, 0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 50, padding: '16px' },
-  modal: { backgroundColor: '#ffffff', borderRadius: '8px', boxShadow: '0 24px 38px 3px rgba(0,0,0,0.14), 0 9px 46px 8px rgba(0,0,0,0.12), 0 11px 15px -7px rgba(0,0,0,0.2)', maxWidth: '600px', width: '100%', maxHeight: '90vh', overflow: 'auto' },
-  header: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '24px 24px 16px', borderBottom: '1px solid #e8eaed' },
-  title: { fontSize: '20px', fontWeight: 500, color: '#3c4043', margin: 0 },
-  closeBtn: { width: '32px', height: '32px', border: 'none', borderRadius: '50%', backgroundColor: 'transparent', color: '#5f6368', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '18px' },
-  timeInfo: { display: 'flex', alignItems: 'center', gap: '16px', padding: '16px 24px', backgroundColor: '#f8f9fa', borderBottom: '1px solid #e8eaed' },
-  timeIcon: { fontSize: '24px' },
-  timeText: { fontSize: '16px', fontWeight: 500, color: '#3c4043', marginBottom: '4px' },
-  timeRange: { fontSize: '14px', color: '#5f6368', marginBottom: '2px' },
-  zoneInfo: { fontSize: '14px', color: '#1a73e8', fontWeight: 500 },
-  form: { padding: '24px' },
-  formGroup: { marginBottom: '20px' },
-  formRow: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '20px' },
-  label: { display: 'block', fontSize: '14px', fontWeight: 500, color: '#3c4043', marginBottom: '8px' },
-  input: { width: '100%', padding: '12px 16px', border: '1px solid #dadce0', borderRadius: '4px', fontSize: '14px', color: '#3c4043', backgroundColor: '#ffffff', boxSizing: 'border-box' },
-  select: { width: '100%', padding: '12px 16px', border: '1px solid #dadce0', borderRadius: '4px', fontSize: '14px', color: '#3c4043', backgroundColor: '#ffffff', boxSizing: 'border-box' } as any,
-  textarea: { width: '100%', padding: '12px 16px', border: '1px solid #dadce0', borderRadius: '4px', fontSize: '14px', color: '#3c4043', backgroundColor: '#ffffff', resize: 'vertical', fontFamily: 'inherit', boxSizing: 'border-box' },
-  successMessage: { padding: '12px 16px', backgroundColor: '#e8f5e8', color: '#137333', borderRadius: '4px', fontSize: '14px', marginBottom: '20px' },
-  errorMessage: { padding: '12px 16px', backgroundColor: '#fce8e6', color: '#d93025', borderRadius: '4px', fontSize: '14px', marginBottom: '20px' },
-  actions: { display: 'flex', justifyContent: 'flex-end', gap: '12px', paddingTop: '16px', borderTop: '1px solid #e8eaed' },
-  cancelButton: { padding: '10px 24px', border: '1px solid #dadce0', borderRadius: '4px', backgroundColor: '#ffffff', color: '#3c4043', fontSize: '14px', fontWeight: 500, cursor: 'pointer' },
-  saveButton: { padding: '10px 24px', border: 'none', borderRadius: '4px', backgroundColor: '#1a73e8', color: '#ffffff', fontSize: '14px', fontWeight: 500, cursor: 'pointer' },
-  saveButtonDisabled: { backgroundColor: '#dadce0', color: '#9aa0a6', cursor: 'not-allowed' }
+const styles: any = {
+  backdrop: {
+    position: 'fixed',
+    inset: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.6)',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 1000,
+    padding: '20px'
+  },
+
+  modal: {
+    backgroundColor: '#ffffff',
+    borderRadius: '20px',
+    boxShadow: '0 20px 40px rgba(0,0,0,0.3)',
+    maxWidth: '600px',
+    width: '100%',
+    maxHeight: '90vh',
+    overflow: 'auto',
+    border: '4px solid #3498db'
+  },
+
+  header: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: '25px 30px',
+    backgroundColor: '#3498db',
+    color: 'white',
+    borderRadius: '16px 16px 0 0'
+  },
+
+  title: {
+    fontSize: '24px',
+    fontWeight: 'bold',
+    margin: 0
+  },
+
+  closeBtn: {
+    width: '40px',
+    height: '40px',
+    border: 'none',
+    borderRadius: '50%',
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    color: 'white',
+    cursor: 'pointer',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    fontSize: '20px',
+    fontWeight: 'bold',
+    transition: 'all 0.3s ease'
+  },
+
+  timeInfo: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '20px',
+    padding: '25px 30px',
+    backgroundColor: '#ecf0f1',
+    borderBottom: '3px solid #bdc3c7'
+  },
+
+  timeIcon: {
+    fontSize: '32px'
+  },
+
+  timeText: {
+    fontSize: '18px',
+    fontWeight: 'bold',
+    color: '#2c3e50',
+    marginBottom: '8px'
+  },
+
+  timeRange: {
+    fontSize: '16px',
+    color: '#7f8c8d',
+    fontWeight: 'bold',
+    marginBottom: '4px'
+  },
+
+  zoneInfo: {
+    fontSize: '16px',
+    color: '#3498db',
+    fontWeight: 'bold'
+  },
+
+  content: {
+    padding: '30px'
+  },
+
+  stepTitle: {
+    fontSize: '20px',
+    fontWeight: 'bold',
+    color: '#2c3e50',
+    marginBottom: '20px',
+    textAlign: 'center'
+  },
+
+  choicesContainer: {
+    display: 'grid',
+    gridTemplateColumns: '1fr 1fr',
+    gap: '20px'
+  },
+
+  choiceCard: {
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'center',
+    gap: '15px',
+    padding: '25px',
+    border: '3px solid #3498db',
+    borderRadius: '20px',
+    backgroundColor: '#ffffff',
+    cursor: 'pointer',
+    transition: 'all 0.3s ease',
+    fontSize: '16px',
+    fontWeight: 'bold',
+    ':hover': {
+      backgroundColor: '#3498db',
+      color: 'white',
+      transform: 'scale(1.05)'
+    }
+  },
+
+  choiceIcon: {
+    fontSize: '48px'
+  },
+
+  choiceTitle: {
+    fontSize: '18px',
+    fontWeight: 'bold',
+    textAlign: 'center'
+  },
+
+  choiceDesc: {
+    fontSize: '14px',
+    textAlign: 'center',
+    opacity: 0.8
+  },
+
+  form: {
+    padding: '30px'
+  },
+
+  formGroup: {
+    marginBottom: '25px'
+  },
+
+  formRow: {
+    display: 'grid',
+    gridTemplateColumns: '1fr 1fr',
+    gap: '20px',
+    marginBottom: '25px'
+  },
+
+  label: {
+    display: 'block',
+    fontSize: '16px',
+    fontWeight: 'bold',
+    color: '#2c3e50',
+    marginBottom: '10px'
+  },
+
+  input: {
+    width: '100%',
+    padding: '15px 20px',
+    border: '3px solid #bdc3c7',
+    borderRadius: '15px',
+    fontSize: '16px',
+    color: '#2c3e50',
+    backgroundColor: '#ffffff',
+    boxSizing: 'border-box',
+    transition: 'all 0.3s ease',
+    ':focus': {
+      borderColor: '#3498db',
+      outline: 'none',
+      boxShadow: '0 0 10px rgba(52, 152, 219, 0.3)'
+    }
+  },
+
+  select: {
+    width: '100%',
+    padding: '15px 20px',
+    border: '3px solid #bdc3c7',
+    borderRadius: '15px',
+    fontSize: '16px',
+    color: '#2c3e50',
+    backgroundColor: '#ffffff',
+    cursor: 'pointer',
+    boxSizing: 'border-box'
+  },
+
+  textarea: {
+    width: '100%',
+    padding: '15px 20px',
+    border: '3px solid #bdc3c7',
+    borderRadius: '15px',
+    fontSize: '16px',
+    color: '#2c3e50',
+    backgroundColor: '#ffffff',
+    resize: 'vertical',
+    fontFamily: '"Comic Sans MS", "Arial", sans-serif',
+    boxSizing: 'border-box'
+  },
+
+  typeDisplay: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '15px',
+    padding: '15px 20px',
+    backgroundColor: '#ecf0f1',
+    borderRadius: '15px',
+    border: '3px solid #bdc3c7',
+    fontSize: '16px',
+    fontWeight: 'bold'
+  },
+
+  changeButton: {
+    padding: '8px 15px',
+    border: 'none',
+    borderRadius: '15px',
+    backgroundColor: '#3498db',
+    color: 'white',
+    fontSize: '14px',
+    fontWeight: 'bold',
+    cursor: 'pointer',
+    transition: 'all 0.3s ease'
+  },
+
+  staffDisplay: {
+    padding: '15px 20px',
+    backgroundColor: '#ecf0f1',
+    borderRadius: '15px',
+    border: '3px solid #bdc3c7',
+    fontSize: '16px',
+    fontWeight: 'bold',
+    color: '#2c3e50'
+  },
+
+  helpText: {
+    fontSize: '14px',
+    color: '#7f8c8d',
+    marginTop: '8px',
+    fontWeight: 'bold'
+  },
+
+  errorText: {
+    fontSize: '14px',
+    color: '#e74c3c',
+    marginTop: '8px',
+    fontWeight: 'bold'
+  },
+
+  successMessage: {
+    padding: '20px',
+    backgroundColor: '#d5f4e6',
+    color: '#27ae60',
+    borderRadius: '15px',
+    fontSize: '16px',
+    fontWeight: 'bold',
+    marginBottom: '25px',
+    border: '3px solid #2ecc71',
+    textAlign: 'center'
+  },
+
+  errorMessage: {
+    padding: '20px',
+    backgroundColor: '#ffebee',
+    color: '#e74c3c',
+    borderRadius: '15px',
+    fontSize: '16px',
+    fontWeight: 'bold',
+    marginBottom: '25px',
+    border: '3px solid #e74c3c',
+    textAlign: 'center'
+  },
+
+  actions: {
+    display: 'flex',
+    gap: '20px',
+    justifyContent: 'center',
+    paddingTop: '25px',
+    borderTop: '3px solid #ecf0f1'
+  },
+
+  cancelButton: {
+    padding: '15px 30px',
+    border: '3px solid #95a5a6',
+    borderRadius: '25px',
+    backgroundColor: '#ecf0f1',
+    color: '#2c3e50',
+    fontSize: '16px',
+    fontWeight: 'bold',
+    cursor: 'pointer',
+    transition: 'all 0.3s ease'
+  },
+
+  saveButton: {
+    padding: '15px 30px',
+    border: 'none',
+    borderRadius: '25px',
+    backgroundColor: '#2ecc71',
+    color: 'white',
+    fontSize: '16px',
+    fontWeight: 'bold',
+    cursor: 'pointer',
+    transition: 'all 0.3s ease',
+    boxShadow: '0 4px 8px rgba(46, 204, 113, 0.3)'
+  },
+
+  saveButtonDisabled: {
+    backgroundColor: '#bdc3c7',
+    color: '#7f8c8d',
+    cursor: 'not-allowed',
+    boxShadow: 'none'
+  }
 };
 
-// Extras UI pour l'étape 1
-(modalStyles as any).choiceCard = {
-  display: 'flex', gap: 12, alignItems: 'center',
-  padding: '16px', border: '1px solid #e5e7eb', borderRadius: 8,
-  background: '#fff', cursor: 'pointer'
-};
-(modalStyles as any).choiceIcon = { fontSize: 22 };
-(modalStyles as any).choiceTitle = { fontWeight: 600, fontSize: 14, color: '#3c4043' };
-(modalStyles as any).choiceDesc = { fontSize: 12, color: '#6b7280' };
-(modalStyles as any).smallLinkButton = { border:'none', background:'transparent', color:'#1a73e8', cursor:'pointer', padding:0 };
