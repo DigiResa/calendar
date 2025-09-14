@@ -211,12 +211,21 @@ export default function BookingModal({
     <div style={styles.backdrop} onClick={onClose}>
       <div style={styles.modal} onClick={e => e.stopPropagation()}>
         <div style={styles.header}>
-          <h2 style={styles.title}>🎉 Nouvelle réservation</h2>
-          <button onClick={onClose} style={styles.closeBtn}>✕</button>
+          <h2 style={styles.title}>Nouvelle réservation</h2>
+          <button onClick={onClose} style={styles.closeBtn}>
+            <svg width="24" height="24" viewBox="0 0 24 24">
+              <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z" fill="currentColor"/>
+            </svg>
+          </button>
         </div>
 
         <div style={styles.timeInfo}>
-          <div style={styles.timeIcon}>🕐</div>
+          <div style={styles.timeIcon}>
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="#1a73e8">
+              <path d="M11.99 2C6.47 2 2 6.48 2 12s4.47 10 9.99 10C17.52 22 22 17.52 22 12S17.52 2 11.99 2zM12 20c-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8-3.58 8-8 8z"/>
+              <path d="M12.5 7H11v6l5.25 3.15.75-1.23-4.5-2.67z"/>
+            </svg>
+          </div>
           <div>
             <div style={styles.timeText}>
               {new Date(slot.start).toLocaleDateString('fr-FR', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
@@ -227,7 +236,7 @@ export default function BookingModal({
               {new Date(slot.end).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}
             </div>
             {!isVisio && (
-              <div style={styles.zoneInfo}>📍 Zone: {zoneName || slot.zone}</div>
+              <div style={styles.zoneInfo}>Zone: {zoneName || slot.zone}</div>
             )}
           </div>
         </div>
@@ -235,17 +244,25 @@ export default function BookingModal({
         {/* Étape 1: choix du type de RDV */}
         {step===1 && (
           <div style={styles.content}>
-            <div style={styles.stepTitle}>Quel type de rendez-vous ? 🤔</div>
+            <div style={styles.stepTitle}>Quel type de rendez-vous ?</div>
             <div style={styles.choicesContainer}>
               <button type="button" onClick={()=>{ setIsVisio(true); setStep(2); }} style={styles.choiceCard}>
-                <div style={styles.choiceIcon}>🎥</div>
+                <div style={styles.choiceIcon}>
+                  <svg width="48" height="48" viewBox="0 0 24 24" fill="#1a73e8">
+                    <path d="M17 10.5V7c0-.55-.45-1-1-1H4c-.55 0-1 .45-1 1v10c0 .55.45 1 1 1h12c.55 0 1-.45 1-1v-3.5l4 4v-11l-4 4z"/>
+                  </svg>
+                </div>
                 <div>
                   <div style={styles.choiceTitle}>RDV en visio</div>
                   <div style={styles.choiceDesc}>Par internet avec Google Meet</div>
                 </div>
               </button>
               <button type="button" onClick={()=>{ setIsVisio(false); setStep(2); }} style={styles.choiceCard}>
-                <div style={styles.choiceIcon}>📍</div>
+                <div style={styles.choiceIcon}>
+                  <svg width="48" height="48" viewBox="0 0 24 24" fill="#1a73e8">
+                    <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/>
+                  </svg>
+                </div>
                 <div>
                   <div style={styles.choiceTitle}>RDV en personne</div>
                   <div style={styles.choiceDesc}>Dans un lieu physique</div>
@@ -260,22 +277,22 @@ export default function BookingModal({
         <form style={styles.form}>
           <div style={styles.formRow}>
             <div style={styles.formGroup}>
-              <label style={styles.label}>🍽️ Nom du restaurant</label>
+              <label style={styles.label}>Nom du restaurant</label>
               <input type="text" placeholder="Ex: Chez Mario" value={restaurant} onChange={e => setRestaurant(e.target.value)} style={styles.input} />
             </div>
             <div style={styles.formGroup}>
-              <label style={styles.label}>🏙️ Ville</label>
+              <label style={styles.label}>Ville</label>
               <input type="text" placeholder="Ex: Narbonne" value={city} onChange={e => setCity(e.target.value)} style={styles.input} />
             </div>
           </div>
 
           <div style={styles.formRow}>
             <div style={styles.formGroup}>
-              <label style={styles.label}>👤 Nom du client *</label>
+              <label style={styles.label}>Nom du client *</label>
               <input type="text" placeholder="Jean Dupont" value={name} onChange={e => setName(e.target.value)} style={styles.input} required />
             </div>
             <div style={styles.formGroup}>
-              <label style={styles.label}>📅 Type de rendez-vous</label>
+              <label style={styles.label}>Type de rendez-vous</label>
               <div style={styles.typeDisplay}>
                 <span>{isVisio ? 'Visio (Google Meet)' : 'Physique'}</span>
                 <button type="button" onClick={()=>setStep(1)} style={styles.changeButton}>Changer</button>
@@ -285,7 +302,7 @@ export default function BookingModal({
 
           <div style={styles.formRow}>
             <div style={styles.formGroup}>
-              <label style={styles.label}>👨‍💼 Staff</label>
+              <label style={styles.label}>Staff</label>
               {(allowedStaffIds && allowedStaffIds.length > 1) ? (
                 <select value={staffId ?? 0} onChange={e=> setStaffId(Number(e.target.value)||undefined)} style={styles.select}>
                   <option value={0}>Auto (least-load)</option>
@@ -304,7 +321,7 @@ export default function BookingModal({
             </div>
             {!isVisio && (
               <div style={styles.formGroup}>
-                <label style={styles.label}>📍 Zone</label>
+                <label style={styles.label}>Zone</label>
                 <select value={zoneName} onChange={e=>setZoneName(e.target.value)} style={styles.select}>
                   <option value="" disabled>Choisir une zone</option>
                   {(zoneOptions.length ? zoneOptions : [slot.zone]).map(z => (
@@ -321,32 +338,32 @@ export default function BookingModal({
 
           <div style={styles.formRow}>
             <div style={styles.formGroup}>
-              <label style={styles.label}>📧 Email</label>
+              <label style={styles.label}>Email</label>
               <input type="email" placeholder="jean.dupont@email.com" value={email} onChange={e => setEmail(e.target.value)} style={styles.input} />
             </div>
             <div style={styles.formGroup}>
-              <label style={styles.label}>📞 Téléphone</label>
+              <label style={styles.label}>Téléphone</label>
               <input type="tel" placeholder="06 12 34 56 78" value={tel} onChange={e => setTel(e.target.value)} style={styles.input} />
             </div>
           </div>
 
           <div style={styles.formGroup}>
-            <label style={styles.label}>📝 Notes</label>
+            <label style={styles.label}>Notes</label>
             <textarea placeholder="Informations complémentaires..." value={notes} onChange={e => setNotes(e.target.value)} style={styles.textarea} rows={3} />
           </div>
 
           <div style={styles.formGroup}>
-            <label style={styles.label}>👥 Invités (emails séparés par des virgules)</label>
+            <label style={styles.label}>Invités (emails séparés par des virgules)</label>
             <input type="text" placeholder="invite1@email.com, invite2@email.com" value={att} onChange={e => setAtt(e.target.value)} style={styles.input} />
           </div>
 
-          {ok && (<div style={styles.successMessage}>🎉 {ok}</div>)}
-          {err && (<div style={styles.errorMessage}>❌ {err}</div>)}
+          {ok && (<div style={styles.successMessage}>{ok}</div>)}
+          {err && (<div style={styles.errorMessage}>{err}</div>)}
 
           <div style={styles.actions}>
-            <button type="button" onClick={onClose} style={styles.cancelButton}>❌ Annuler</button>
+            <button type="button" onClick={onClose} style={styles.cancelButton}>Annuler</button>
             <button type="button" onClick={book} disabled={!name || loading || (!isVisio && (!zoneName || allowedStaffIds.length===0))} style={{...styles.saveButton, ...((!name || loading || (!isVisio && (!zoneName || allowedStaffIds.length===0))) ? styles.saveButtonDisabled : {})}}>
-              {loading ? '⏳ Création en cours...' : '✅ Créer le rendez-vous'}
+              {loading ? 'Création en cours...' : 'Créer le rendez-vous'}
             </button>
           </div>
         </form>
@@ -360,38 +377,36 @@ const styles: any = {
   backdrop: {
     position: 'fixed',
     inset: 0,
-    backgroundColor: 'rgba(0, 0, 0, 0.6)',
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
     zIndex: 1000,
-    padding: '20px'
+    padding: '16px'
   },
 
   modal: {
     backgroundColor: '#ffffff',
-    borderRadius: '20px',
-    boxShadow: '0 20px 40px rgba(0,0,0,0.3)',
-    maxWidth: '600px',
+    borderRadius: '8px',
+    boxShadow: '0 24px 38px 3px rgba(0,0,0,0.14)',
+    maxWidth: '480px',
     width: '100%',
     maxHeight: '90vh',
-    overflow: 'auto',
-    border: '4px solid #3498db'
+    overflow: 'auto'
   },
 
   header: {
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'space-between',
-    padding: '25px 30px',
-    backgroundColor: '#3498db',
-    color: 'white',
-    borderRadius: '16px 16px 0 0'
+    padding: '24px 24px 16px',
+    borderBottom: '1px solid #e8eaed'
   },
 
   title: {
-    fontSize: '24px',
-    fontWeight: 'bold',
+    fontSize: '20px',
+    fontWeight: 500,
+    color: '#3c4043',
     margin: 0
   },
 
@@ -400,151 +415,154 @@ const styles: any = {
     height: '40px',
     border: 'none',
     borderRadius: '50%',
-    backgroundColor: 'rgba(255,255,255,0.2)',
-    color: 'white',
+    backgroundColor: 'transparent',
+    color: '#5f6368',
     cursor: 'pointer',
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
-    fontSize: '20px',
-    fontWeight: 'bold',
-    transition: 'all 0.3s ease'
+    transition: 'background-color 0.2s ease',
+    ':hover': {
+      backgroundColor: '#f1f3f4'
+    }
   },
 
   timeInfo: {
     display: 'flex',
     alignItems: 'center',
-    gap: '20px',
-    padding: '25px 30px',
-    backgroundColor: '#ecf0f1',
-    borderBottom: '3px solid #bdc3c7'
+    gap: '16px',
+    padding: '16px 24px',
+    backgroundColor: '#f8f9fa',
+    borderBottom: '1px solid #e8eaed'
   },
 
   timeIcon: {
-    fontSize: '32px'
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center'
   },
 
   timeText: {
-    fontSize: '18px',
-    fontWeight: 'bold',
-    color: '#2c3e50',
-    marginBottom: '8px'
+    fontSize: '16px',
+    fontWeight: 500,
+    color: '#3c4043',
+    marginBottom: '4px'
   },
 
   timeRange: {
-    fontSize: '16px',
-    color: '#7f8c8d',
-    fontWeight: 'bold',
+    fontSize: '14px',
+    color: '#5f6368',
     marginBottom: '4px'
   },
 
   zoneInfo: {
-    fontSize: '16px',
-    color: '#3498db',
-    fontWeight: 'bold'
+    fontSize: '14px',
+    color: '#1a73e8',
+    fontWeight: 500
   },
 
   content: {
-    padding: '30px'
+    padding: '24px'
   },
 
   stepTitle: {
-    fontSize: '20px',
-    fontWeight: 'bold',
-    color: '#2c3e50',
-    marginBottom: '20px',
+    fontSize: '18px',
+    fontWeight: 500,
+    color: '#3c4043',
+    marginBottom: '16px',
     textAlign: 'center'
   },
 
   choicesContainer: {
     display: 'grid',
     gridTemplateColumns: '1fr 1fr',
-    gap: '20px'
+    gap: '16px'
   },
 
   choiceCard: {
     display: 'flex',
     flexDirection: 'column',
     alignItems: 'center',
-    gap: '15px',
-    padding: '25px',
-    border: '3px solid #3498db',
-    borderRadius: '20px',
+    gap: '12px',
+    padding: '20px',
+    border: '1px solid #dadce0',
+    borderRadius: '8px',
     backgroundColor: '#ffffff',
     cursor: 'pointer',
-    transition: 'all 0.3s ease',
-    fontSize: '16px',
-    fontWeight: 'bold',
+    transition: 'all 0.2s ease',
     ':hover': {
-      backgroundColor: '#3498db',
-      color: 'white',
-      transform: 'scale(1.05)'
+      backgroundColor: '#f8f9fa',
+      borderColor: '#1a73e8'
     }
   },
 
   choiceIcon: {
-    fontSize: '48px'
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center'
   },
 
   choiceTitle: {
-    fontSize: '18px',
-    fontWeight: 'bold',
+    fontSize: '16px',
+    fontWeight: 500,
+    color: '#3c4043',
     textAlign: 'center'
   },
 
   choiceDesc: {
     fontSize: '14px',
+    color: '#5f6368',
     textAlign: 'center',
-    opacity: 0.8
+    marginTop: '4px'
   },
 
   form: {
-    padding: '30px'
+    padding: '24px'
   },
 
   formGroup: {
-    marginBottom: '25px'
+    marginBottom: '20px'
   },
 
   formRow: {
     display: 'grid',
     gridTemplateColumns: '1fr 1fr',
-    gap: '20px',
-    marginBottom: '25px'
+    gap: '16px',
+    marginBottom: '20px'
   },
 
   label: {
     display: 'block',
-    fontSize: '16px',
-    fontWeight: 'bold',
-    color: '#2c3e50',
-    marginBottom: '10px'
+    fontSize: '14px',
+    fontWeight: 500,
+    color: '#3c4043',
+    marginBottom: '8px'
   },
 
   input: {
     width: '100%',
-    padding: '15px 20px',
-    border: '3px solid #bdc3c7',
-    borderRadius: '15px',
-    fontSize: '16px',
-    color: '#2c3e50',
+    padding: '12px 16px',
+    border: '1px solid #dadce0',
+    borderRadius: '4px',
+    fontSize: '14px',
+    color: '#3c4043',
     backgroundColor: '#ffffff',
     boxSizing: 'border-box',
-    transition: 'all 0.3s ease',
+    transition: 'border-color 0.2s ease',
     ':focus': {
-      borderColor: '#3498db',
+      borderColor: '#1a73e8',
       outline: 'none',
-      boxShadow: '0 0 10px rgba(52, 152, 219, 0.3)'
+      boxShadow: '0 0 0 1px #1a73e8'
     }
   },
 
   select: {
     width: '100%',
-    padding: '15px 20px',
-    border: '3px solid #bdc3c7',
-    borderRadius: '15px',
-    fontSize: '16px',
-    color: '#2c3e50',
+    padding: '12px 16px',
+    border: '1px solid #dadce0',
+    borderRadius: '4px',
+    fontSize: '14px',
+    color: '#3c4043',
     backgroundColor: '#ffffff',
     cursor: 'pointer',
     boxSizing: 'border-box'
@@ -552,127 +570,128 @@ const styles: any = {
 
   textarea: {
     width: '100%',
-    padding: '15px 20px',
-    border: '3px solid #bdc3c7',
-    borderRadius: '15px',
-    fontSize: '16px',
-    color: '#2c3e50',
+    padding: '12px 16px',
+    border: '1px solid #dadce0',
+    borderRadius: '4px',
+    fontSize: '14px',
+    color: '#3c4043',
     backgroundColor: '#ffffff',
     resize: 'vertical',
-    fontFamily: '"Comic Sans MS", "Arial", sans-serif',
+    fontFamily: '"Google Sans", "Roboto", -apple-system, BlinkMacSystemFont, sans-serif',
     boxSizing: 'border-box'
   },
 
   typeDisplay: {
     display: 'flex',
     alignItems: 'center',
-    gap: '15px',
-    padding: '15px 20px',
-    backgroundColor: '#ecf0f1',
-    borderRadius: '15px',
-    border: '3px solid #bdc3c7',
-    fontSize: '16px',
-    fontWeight: 'bold'
+    gap: '12px',
+    padding: '12px 16px',
+    backgroundColor: '#f8f9fa',
+    borderRadius: '4px',
+    border: '1px solid #dadce0',
+    fontSize: '14px',
+    color: '#3c4043'
   },
 
   changeButton: {
-    padding: '8px 15px',
+    padding: '6px 12px',
     border: 'none',
-    borderRadius: '15px',
-    backgroundColor: '#3498db',
+    borderRadius: '4px',
+    backgroundColor: '#1a73e8',
     color: 'white',
-    fontSize: '14px',
-    fontWeight: 'bold',
+    fontSize: '12px',
+    fontWeight: 500,
     cursor: 'pointer',
-    transition: 'all 0.3s ease'
+    transition: 'background-color 0.2s ease',
+    ':hover': {
+      backgroundColor: '#1557b0'
+    }
   },
 
   staffDisplay: {
-    padding: '15px 20px',
-    backgroundColor: '#ecf0f1',
-    borderRadius: '15px',
-    border: '3px solid #bdc3c7',
-    fontSize: '16px',
-    fontWeight: 'bold',
-    color: '#2c3e50'
+    padding: '12px 16px',
+    backgroundColor: '#f8f9fa',
+    borderRadius: '4px',
+    border: '1px solid #dadce0',
+    fontSize: '14px',
+    color: '#3c4043'
   },
 
   helpText: {
-    fontSize: '14px',
-    color: '#7f8c8d',
-    marginTop: '8px',
-    fontWeight: 'bold'
+    fontSize: '12px',
+    color: '#5f6368',
+    marginTop: '4px'
   },
 
   errorText: {
-    fontSize: '14px',
-    color: '#e74c3c',
-    marginTop: '8px',
-    fontWeight: 'bold'
+    fontSize: '12px',
+    color: '#d93025',
+    marginTop: '4px'
   },
 
   successMessage: {
-    padding: '20px',
-    backgroundColor: '#d5f4e6',
-    color: '#27ae60',
-    borderRadius: '15px',
-    fontSize: '16px',
-    fontWeight: 'bold',
-    marginBottom: '25px',
-    border: '3px solid #2ecc71',
-    textAlign: 'center'
+    padding: '12px 16px',
+    backgroundColor: '#e8f5e8',
+    color: '#137333',
+    borderRadius: '4px',
+    fontSize: '14px',
+    marginBottom: '16px'
   },
 
   errorMessage: {
-    padding: '20px',
+    padding: '12px 16px',
     backgroundColor: '#ffebee',
-    color: '#e74c3c',
-    borderRadius: '15px',
-    fontSize: '16px',
-    fontWeight: 'bold',
-    marginBottom: '25px',
-    border: '3px solid #e74c3c',
-    textAlign: 'center'
+    color: '#d93025',
+    borderRadius: '4px',
+    fontSize: '14px',
+    marginBottom: '16px'
   },
 
   actions: {
     display: 'flex',
-    gap: '20px',
-    justifyContent: 'center',
-    paddingTop: '25px',
-    borderTop: '3px solid #ecf0f1'
+    justifyContent: 'flex-end',
+    gap: '8px',
+    paddingTop: '16px',
+    borderTop: '1px solid #e8eaed'
   },
 
   cancelButton: {
-    padding: '15px 30px',
-    border: '3px solid #95a5a6',
-    borderRadius: '25px',
-    backgroundColor: '#ecf0f1',
-    color: '#2c3e50',
-    fontSize: '16px',
-    fontWeight: 'bold',
+    padding: '8px 16px',
+    border: '1px solid #dadce0',
+    borderRadius: '4px',
+    backgroundColor: '#ffffff',
+    color: '#3c4043',
+    fontSize: '14px',
+    fontWeight: 500,
     cursor: 'pointer',
-    transition: 'all 0.3s ease'
+    transition: 'background-color 0.2s ease',
+    ':hover': {
+      backgroundColor: '#f8f9fa'
+    }
   },
 
   saveButton: {
-    padding: '15px 30px',
+    padding: '8px 16px',
     border: 'none',
-    borderRadius: '25px',
-    backgroundColor: '#2ecc71',
+    borderRadius: '4px',
+    backgroundColor: '#1a73e8',
     color: 'white',
-    fontSize: '16px',
-    fontWeight: 'bold',
+    fontSize: '14px',
+    fontWeight: 500,
     cursor: 'pointer',
-    transition: 'all 0.3s ease',
-    boxShadow: '0 4px 8px rgba(46, 204, 113, 0.3)'
+    transition: 'background-color 0.2s ease',
+    ':hover': {
+      backgroundColor: '#1557b0'
+    }
   },
 
   saveButtonDisabled: {
-    backgroundColor: '#bdc3c7',
-    color: '#7f8c8d',
+    backgroundColor: '#dadce0',
+    color: '#9aa0a6',
     cursor: 'not-allowed',
-    boxShadow: 'none'
+    ':hover': {
+      backgroundColor: '#dadce0'
+    }
   }
 };
 

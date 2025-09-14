@@ -1,4 +1,3 @@
-// app/page.tsx
 'use client';
 import { useEffect, useMemo, useState } from 'react';
 import dayjs from 'dayjs';
@@ -70,8 +69,6 @@ export default function CalendarWeek() {
     try {
       const from = base.startOf('day').toISOString();
       const to = base.add(6, 'day').endOf('day').toISOString();
-      const fromDate = base.startOf('day').format('YYYY-MM-DD');
-      const toDate = base.add(6, 'day').endOf('day').format('YYYY-MM-DD');
 
       // Charger tout en parallèle
       const [staffData, settingsData, staffZonesData, zonesData, availData, bookingsData] = await Promise.all([
@@ -165,49 +162,65 @@ export default function CalendarWeek() {
 
   return (
     <div style={styles.container}>
-      {/* Header ultra-simple */}
+      {/* Header Google Calendar style */}
       <header style={styles.header}>
-        <div style={styles.headerContent}>
+        <div style={styles.headerLeft}>
+          <button style={styles.menuButton}>
+            <svg width="24" height="24" viewBox="0 0 24 24">
+              <path d="M3 18h18v-2H3v2zm0-5h18v-2H3v2zm0-7v2h18V6H3z" fill="currentColor"/>
+            </svg>
+          </button>
           <div style={styles.logo}>
-            <div style={styles.logoIcon}>🗓️</div>
-            <h1 style={styles.title}>Mon Calendrier</h1>
+            <svg width="40" height="40" viewBox="0 0 24 24" style={styles.logoIcon}>
+              <path d="M19 3h-1V1h-2v2H8V1H6v2H5c-1.11 0-1.99.9-1.99 2L3 19c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H5V8h14v11zM7 10h5v5H7z" fill="#4285f4"/>
+            </svg>
+            <span style={styles.logoText}>Calendrier</span>
           </div>
-          
-          <div style={styles.navigation}>
-            <button onClick={prevWeek} style={styles.navButton}>
-              <span style={styles.navArrow}>←</span>
-              <span>Semaine précédente</span>
-            </button>
-            
-            <button onClick={goToday} style={styles.todayButton}>
-              <span style={styles.todayIcon}>🏠</span>
-              <span>Aujourd'hui</span>
-            </button>
-            
-            <button onClick={nextWeek} style={styles.navButton}>
-              <span>Semaine suivante</span>
-              <span style={styles.navArrow}>→</span>
-            </button>
-          </div>
+        </div>
 
-          <div style={styles.monthDisplay}>
-            {weekStart.format('MMMM YYYY')}
+        <div style={styles.headerCenter}>
+          <div style={styles.navigationControls}>
+            <button onClick={goToday} style={styles.todayButton}>
+              Aujourd'hui
+            </button>
+            <div style={styles.navButtons}>
+              <button onClick={prevWeek} style={styles.navButton}>
+                <svg width="20" height="20" viewBox="0 0 24 24">
+                  <path d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z" fill="currentColor"/>
+                </svg>
+              </button>
+              <button onClick={nextWeek} style={styles.navButton}>
+                <svg width="20" height="20" viewBox="0 0 24 24">
+                  <path d="M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z" fill="currentColor"/>
+                </svg>
+              </button>
+            </div>
           </div>
+          <h1 style={styles.monthTitle}>
+            {weekStart.format('MMMM YYYY')}
+          </h1>
+        </div>
+
+        <div style={styles.headerRight}>
+          <button style={styles.viewButton}>
+            <svg width="20" height="20" viewBox="0 0 24 24">
+              <path d="M3 13h2v-2H3v2zm0 4h2v-2H3v2zm0-8h2V7H3v2zm4 4h14v-2H7v2zm0 4h14v-2H7v2zM7 7v2h14V7H7z" fill="currentColor"/>
+            </svg>
+            Semaine
+          </button>
+          <button style={styles.settingsButton}>
+            <svg width="20" height="20" viewBox="0 0 24 24">
+              <path d="M19.14,12.94c0.04-0.3,0.06-0.61,0.06-0.94c0-0.32-0.02-0.64-0.07-0.94l2.03-1.58c0.18-0.14,0.23-0.41,0.12-0.61 l-1.92-3.32c-0.12-0.22-0.37-0.29-0.59-0.22l-2.39,0.96c-0.5-0.38-1.03-0.7-1.62-0.94L14.4,2.81c-0.04-0.24-0.24-0.41-0.48-0.41 h-3.84c-0.24,0-0.43,0.17-0.47,0.41L9.25,5.35C8.66,5.59,8.12,5.92,7.63,6.29L5.24,5.33c-0.22-0.08-0.47,0-0.59,0.22L2.74,8.87 C2.62,9.08,2.66,9.34,2.86,9.48l2.03,1.58C4.84,11.36,4.82,11.69,4.82,12s0.02,0.64,0.07,0.94l-2.03,1.58 c-0.18,0.14-0.23,0.41-0.12,0.61l1.92,3.32c0.12,0.22,0.37,0.29,0.59,0.22l2.39-0.96c0.5,0.38,1.03,0.7,1.62,0.94l0.36,2.54 c0.05,0.24,0.24,0.41,0.48,0.41h3.84c0.24,0,0.44-0.17,0.47-0.41l0.36-2.54c0.59-0.24,1.13-0.56,1.62-0.94l2.39,0.96 c0.22,0.08,0.47,0,0.59-0.22l1.92-3.32c0.12-0.22,0.07-0.47-0.12-0.61L19.14,12.94z M12,15.6c-1.98,0-3.6-1.62-3.6-3.6 s1.62-3.6,3.6-3.6s3.6,1.62,3.6,3.6S13.98,15.6,12,15.6z" fill="currentColor"/>
+            </svg>
+          </button>
         </div>
       </header>
 
-      {/* Indicateur de chargement simple */}
-      {loading && (
-        <div style={styles.loadingBar}>
-          <div style={styles.loadingProgress}></div>
-        </div>
-      )}
-
       {/* Calendrier principal */}
       <main style={styles.main}>
-        <div style={styles.calendarWrapper}>
-          {/* En-têtes des jours - TRÈS SIMPLES */}
-          <div style={styles.daysHeader}>
+        <div style={styles.calendarContainer}>
+          {/* En-têtes des jours */}
+          <div style={styles.weekHeader}>
             <div style={styles.timeColumnHeader}></div>
             {days.map(day => {
               const isToday = day.isSame(dayjs(), 'day');
@@ -220,16 +233,14 @@ export default function CalendarWeek() {
                   ...(isWeekend ? styles.dayHeaderWeekend : {})
                 }}>
                   <div style={styles.dayName}>
-                    {day.format('dddd')}
+                    {day.format('ddd').toUpperCase()}
                   </div>
-                  <div style={styles.dayNumber}>
+                  <div style={{
+                    ...styles.dayNumber,
+                    ...(isToday ? styles.dayNumberToday : {})
+                  }}>
                     {day.format('D')}
                   </div>
-                  {isToday && (
-                    <div style={styles.todayBadge}>
-                      Aujourd'hui ✨
-                    </div>
-                  )}
                 </div>
               );
             })}
@@ -242,7 +253,7 @@ export default function CalendarWeek() {
               {hours.map(hour => (
                 <div key={hour} style={styles.timeSlot}>
                   <div style={styles.timeLabel}>
-                    {hour}h
+                    {hour === 12 ? '12 PM' : hour > 12 ? `${hour - 12} PM` : hour === 0 ? '12 AM' : `${hour} AM`}
                   </div>
                 </div>
               ))}
@@ -307,7 +318,7 @@ export default function CalendarWeek() {
                         return (
                           <div style={styles.slotsContainer}>
                             {availableSlots.map((slot, index) => (
-                              <button
+                              <div
                                 key={`${slot.start.toISOString()}-${slot.staff.id}`}
                                 onClick={() => {
                                   const slotObj = createSlot(slot.start, slot.staff.id);
@@ -320,12 +331,9 @@ export default function CalendarWeek() {
                                   {slot.start.format('HH:mm')}
                                 </div>
                                 <div style={styles.slotStaff}>
-                                  👤 {slot.staff.name}
+                                  {slot.staff.name}
                                 </div>
-                                <div style={styles.slotAction}>
-                                  ➕ Réserver
-                                </div>
-                              </button>
+                              </div>
                             ))}
                           </div>
                         );
@@ -337,24 +345,36 @@ export default function CalendarWeek() {
                           const bookingStart = dayjs(booking.start).tz('Europe/Paris');
                           return bookingStart.hour() === hour;
                         })
-                        .map(booking => (
-                          <div
-                            key={booking.id}
-                            onClick={() => setOpenBooking(booking)}
-                            style={styles.existingBooking}
-                          >
-                            <div style={styles.bookingTime}>
-                              {dayjs(booking.start).tz('Europe/Paris').format('HH:mm')} - 
-                              {dayjs(booking.end).tz('Europe/Paris').format('HH:mm')}
+                        .map(booking => {
+                          const bookingStart = dayjs(booking.start).tz('Europe/Paris');
+                          const bookingEnd = dayjs(booking.end).tz('Europe/Paris');
+                          const duration = bookingEnd.diff(bookingStart, 'minute');
+                          const height = Math.max(20, (duration / 60) * 48);
+                          
+                          return (
+                            <div
+                              key={booking.id}
+                              onClick={() => setOpenBooking(booking)}
+                              style={{
+                                ...styles.existingBooking,
+                                height: `${height}px`,
+                                backgroundColor: booking.meeting_mode === 'visio' ? '#1a73e8' : '#137333'
+                              }}
+                            >
+                              <div style={styles.bookingTitle}>
+                                {booking.client_name}
+                              </div>
+                              <div style={styles.bookingTime}>
+                                {bookingStart.format('HH:mm')} - {bookingEnd.format('HH:mm')}
+                              </div>
+                              {booking.zone && (
+                                <div style={styles.bookingZone}>
+                                  {booking.zone}
+                                </div>
+                              )}
                             </div>
-                            <div style={styles.bookingTitle}>
-                              📅 {booking.client_name}
-                            </div>
-                            <div style={styles.bookingZone}>
-                              📍 {booking.zone}
-                            </div>
-                          </div>
-                        ))
+                          );
+                        })
                       }
                     </div>
                   ))}
@@ -363,10 +383,9 @@ export default function CalendarWeek() {
                   {showNowLine && nowPosition >= 0 && nowPosition <= (hourEnd - hourStart) * 60 && (
                     <div style={{
                       ...styles.nowLine,
-                      top: `${(nowPosition / 60) * 120}px`
+                      top: `${(nowPosition / 60) * 48}px`
                     }}>
                       <div style={styles.nowDot}></div>
-                      <div style={styles.nowLabel}>Maintenant</div>
                     </div>
                   )}
                 </div>
@@ -444,13 +463,16 @@ function BookingDetailsModal({
     <div style={modalStyles.backdrop} onClick={onClose}>
       <div style={modalStyles.modal} onClick={e => e.stopPropagation()}>
         <div style={modalStyles.header}>
-          <h2 style={modalStyles.title}>📅 Détails du rendez-vous</h2>
-          <button onClick={onClose} style={modalStyles.closeBtn}>✕</button>
+          <h2 style={modalStyles.title}>Détails du rendez-vous</h2>
+          <button onClick={onClose} style={modalStyles.closeBtn}>
+            <svg width="24" height="24" viewBox="0 0 24 24">
+              <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z" fill="currentColor"/>
+            </svg>
+          </button>
         </div>
         <div style={modalStyles.content}>
-          <div style={modalStyles.infoRow}>
-            <span style={modalStyles.infoIcon}>🕐</span>
-            <div>
+          <div style={modalStyles.infoSection}>
+            <div style={modalStyles.infoRow}>
               <div style={modalStyles.infoLabel}>Quand</div>
               <div style={modalStyles.infoValue}>
                 {new Date(booking.start).toLocaleDateString('fr-FR', { 
@@ -463,50 +485,41 @@ function BookingDetailsModal({
                 })}
               </div>
             </div>
-          </div>
 
-          <div style={modalStyles.infoRow}>
-            <span style={modalStyles.infoIcon}>👤</span>
-            <div>
+            <div style={modalStyles.infoRow}>
               <div style={modalStyles.infoLabel}>Client</div>
               <div style={modalStyles.infoValue}>{booking.client_name}</div>
             </div>
-          </div>
 
-          <div style={modalStyles.infoRow}>
-            <span style={modalStyles.infoIcon}>📍</span>
-            <div>
+            <div style={modalStyles.infoRow}>
               <div style={modalStyles.infoLabel}>Zone</div>
               <div style={modalStyles.infoValue}>{booking.zone}</div>
             </div>
-          </div>
 
-          {booking.staff_name && (
-            <div style={modalStyles.infoRow}>
-              <span style={modalStyles.infoIcon}>👨‍💼</span>
-              <div>
+            {booking.staff_name && (
+              <div style={modalStyles.infoRow}>
                 <div style={modalStyles.infoLabel}>Staff</div>
                 <div style={modalStyles.infoValue}>{booking.staff_name}</div>
               </div>
-            </div>
-          )}
+            )}
+          </div>
 
           {err && (
             <div style={modalStyles.errorMessage}>
-              ❌ {err}
+              {err}
             </div>
           )}
 
           <div style={modalStyles.actions}>
-            <button onClick={onClose} style={modalStyles.closeButton}>
+            <button onClick={onClose} style={modalStyles.cancelButton}>
               Fermer
             </button>
             <button 
               onClick={cancel} 
               disabled={loading} 
-              style={modalStyles.cancelButton}
+              style={modalStyles.deleteButton}
             >
-              {loading ? '⏳ Annulation...' : '🗑️ Annuler le rendez-vous'}
+              {loading ? 'Suppression...' : 'Supprimer'}
             </button>
           </div>
         </div>
@@ -515,359 +528,361 @@ function BookingDetailsModal({
   );
 }
 
-// Styles ultra-simples et colorés
+// Styles Google Calendar
 const styles: any = {
   container: {
     minHeight: '100vh',
-    backgroundColor: '#f0f8ff',
-    fontFamily: '"Comic Sans MS", "Arial", sans-serif',
-    color: '#2c3e50'
+    backgroundColor: '#ffffff',
+    fontFamily: '"Google Sans", "Roboto", -apple-system, BlinkMacSystemFont, sans-serif',
+    display: 'flex',
+    flexDirection: 'column'
   },
 
   header: {
+    height: '64px',
     backgroundColor: '#ffffff',
-    borderBottom: '4px solid #3498db',
-    boxShadow: '0 4px 12px rgba(52, 152, 219, 0.2)',
+    borderBottom: '1px solid #dadce0',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: '0 24px',
     position: 'sticky',
     top: 0,
     zIndex: 100
   },
 
-  headerContent: {
+  headerLeft: {
     display: 'flex',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    padding: '20px 30px',
-    maxWidth: '1400px',
-    margin: '0 auto'
+    gap: '16px'
+  },
+
+  menuButton: {
+    width: '48px',
+    height: '48px',
+    border: 'none',
+    borderRadius: '50%',
+    backgroundColor: 'transparent',
+    color: '#5f6368',
+    cursor: 'pointer',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    transition: 'background-color 0.2s ease',
+    ':hover': {
+      backgroundColor: '#f1f3f4'
+    }
   },
 
   logo: {
     display: 'flex',
     alignItems: 'center',
-    gap: '15px'
+    gap: '8px'
   },
 
   logoIcon: {
-    fontSize: '36px',
-    animation: 'bounce 2s infinite'
+    flexShrink: 0
   },
 
-  title: {
-    fontSize: '28px',
-    fontWeight: 'bold',
-    color: '#3498db',
-    margin: 0,
-    textShadow: '2px 2px 4px rgba(0,0,0,0.1)'
+  logoText: {
+    fontSize: '22px',
+    color: '#5f6368',
+    fontWeight: 400
   },
 
-  navigation: {
+  headerCenter: {
     display: 'flex',
     alignItems: 'center',
-    gap: '15px'
+    gap: '24px'
   },
 
-  navButton: {
+  navigationControls: {
     display: 'flex',
     alignItems: 'center',
-    gap: '8px',
-    padding: '12px 20px',
-    backgroundColor: '#3498db',
-    color: 'white',
-    border: 'none',
-    borderRadius: '25px',
-    fontSize: '16px',
-    fontWeight: 'bold',
-    cursor: 'pointer',
-    transition: 'all 0.3s ease',
-    boxShadow: '0 4px 8px rgba(52, 152, 219, 0.3)',
-    ':hover': {
-      backgroundColor: '#2980b9',
-      transform: 'translateY(-2px)',
-      boxShadow: '0 6px 12px rgba(52, 152, 219, 0.4)'
-    }
-  },
-
-  navArrow: {
-    fontSize: '20px',
-    fontWeight: 'bold'
+    gap: '16px'
   },
 
   todayButton: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: '8px',
-    padding: '12px 20px',
-    backgroundColor: '#e74c3c',
-    color: 'white',
-    border: 'none',
-    borderRadius: '25px',
-    fontSize: '16px',
-    fontWeight: 'bold',
+    padding: '0 16px',
+    height: '36px',
+    border: '1px solid #dadce0',
+    borderRadius: '4px',
+    backgroundColor: '#ffffff',
+    color: '#3c4043',
+    fontSize: '14px',
+    fontWeight: 500,
     cursor: 'pointer',
-    transition: 'all 0.3s ease',
-    boxShadow: '0 4px 8px rgba(231, 76, 60, 0.3)',
+    transition: 'all 0.2s ease',
     ':hover': {
-      backgroundColor: '#c0392b',
-      transform: 'translateY(-2px)',
-      boxShadow: '0 6px 12px rgba(231, 76, 60, 0.4)'
+      backgroundColor: '#f8f9fa',
+      boxShadow: '0 1px 2px 0 rgba(60,64,67,.3), 0 1px 3px 1px rgba(60,64,67,.15)'
     }
   },
 
-  todayIcon: {
-    fontSize: '20px'
+  navButtons: {
+    display: 'flex',
+    alignItems: 'center'
   },
 
-  monthDisplay: {
-    fontSize: '24px',
-    fontWeight: 'bold',
-    color: '#2c3e50',
-    textTransform: 'capitalize',
-    padding: '10px 20px',
-    backgroundColor: '#ecf0f1',
-    borderRadius: '15px',
-    border: '3px solid #bdc3c7'
+  navButton: {
+    width: '36px',
+    height: '36px',
+    border: 'none',
+    borderRadius: '50%',
+    backgroundColor: 'transparent',
+    color: '#5f6368',
+    cursor: 'pointer',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    transition: 'background-color 0.2s ease',
+    ':hover': {
+      backgroundColor: '#f1f3f4'
+    }
   },
 
-  loadingBar: {
-    height: '4px',
-    backgroundColor: '#ecf0f1',
-    overflow: 'hidden'
+  monthTitle: {
+    fontSize: '22px',
+    color: '#3c4043',
+    fontWeight: 400,
+    margin: 0
   },
 
-  loadingProgress: {
-    height: '100%',
-    backgroundColor: '#3498db',
-    animation: 'loading 1.5s ease-in-out infinite',
-    width: '30%'
+  headerRight: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '8px'
+  },
+
+  viewButton: {
+    padding: '0 16px',
+    height: '36px',
+    border: '1px solid #dadce0',
+    borderRadius: '4px',
+    backgroundColor: '#ffffff',
+    color: '#3c4043',
+    fontSize: '14px',
+    fontWeight: 500,
+    cursor: 'pointer',
+    display: 'flex',
+    alignItems: 'center',
+    gap: '8px',
+    transition: 'all 0.2s ease',
+    ':hover': {
+      backgroundColor: '#f8f9fa'
+    }
+  },
+
+  settingsButton: {
+    width: '36px',
+    height: '36px',
+    border: 'none',
+    borderRadius: '50%',
+    backgroundColor: 'transparent',
+    color: '#5f6368',
+    cursor: 'pointer',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    transition: 'background-color 0.2s ease',
+    ':hover': {
+      backgroundColor: '#f1f3f4'
+    }
   },
 
   main: {
-    padding: '20px',
-    maxWidth: '1400px',
-    margin: '0 auto'
+    flex: 1,
+    overflow: 'hidden'
   },
 
-  calendarWrapper: {
-    backgroundColor: '#ffffff',
-    borderRadius: '20px',
-    boxShadow: '0 8px 24px rgba(0,0,0,0.1)',
-    overflow: 'hidden',
-    border: '4px solid #3498db'
+  calendarContainer: {
+    height: '100%',
+    display: 'flex',
+    flexDirection: 'column'
   },
 
-  daysHeader: {
+  weekHeader: {
     display: 'grid',
-    gridTemplateColumns: '100px repeat(7, 1fr)',
-    backgroundColor: '#3498db',
-    color: 'white'
+    gridTemplateColumns: '56px repeat(7, 1fr)',
+    borderBottom: '1px solid #dadce0',
+    backgroundColor: '#ffffff'
   },
 
   timeColumnHeader: {
-    padding: '20px',
-    backgroundColor: '#2980b9'
+    borderRight: '1px solid #dadce0'
   },
 
   dayHeader: {
-    padding: '20px 15px',
+    padding: '12px 8px',
     textAlign: 'center',
-    borderRight: '2px solid #2980b9',
-    backgroundColor: '#3498db',
-    position: 'relative'
+    borderRight: '1px solid #dadce0',
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'center',
+    gap: '4px'
   },
 
   dayHeaderToday: {
-    backgroundColor: '#e74c3c',
-    animation: 'pulse 2s infinite'
+    color: '#1a73e8'
   },
 
   dayHeaderWeekend: {
-    backgroundColor: '#9b59b6'
+    backgroundColor: '#f8f9fa'
   },
 
   dayName: {
-    fontSize: '18px',
-    fontWeight: 'bold',
-    marginBottom: '8px',
-    textTransform: 'capitalize'
+    fontSize: '11px',
+    fontWeight: 500,
+    color: '#70757a',
+    letterSpacing: '0.8px'
   },
 
   dayNumber: {
-    fontSize: '24px',
-    fontWeight: 'bold',
-    width: '40px',
-    height: '40px',
-    backgroundColor: 'rgba(255,255,255,0.2)',
-    borderRadius: '50%',
+    fontSize: '26px',
+    fontWeight: 400,
+    color: '#3c4043',
+    width: '32px',
+    height: '32px',
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
-    margin: '0 auto'
+    borderRadius: '50%'
   },
 
-  todayBadge: {
-    position: 'absolute',
-    bottom: '5px',
-    left: '50%',
-    transform: 'translateX(-50%)',
-    backgroundColor: '#f39c12',
-    color: 'white',
-    padding: '4px 8px',
-    borderRadius: '10px',
-    fontSize: '12px',
-    fontWeight: 'bold'
+  dayNumberToday: {
+    backgroundColor: '#1a73e8',
+    color: '#ffffff'
   },
 
   calendarGrid: {
+    flex: 1,
     display: 'grid',
-    gridTemplateColumns: '100px repeat(7, 1fr)',
-    minHeight: '800px'
+    gridTemplateColumns: '56px repeat(7, 1fr)',
+    overflow: 'auto'
   },
 
   timeColumn: {
-    backgroundColor: '#ecf0f1',
-    borderRight: '3px solid #bdc3c7'
+    borderRight: '1px solid #dadce0',
+    backgroundColor: '#ffffff'
   },
 
   timeSlot: {
-    height: '120px',
+    height: '48px',
     display: 'flex',
-    alignItems: 'center',
+    alignItems: 'flex-start',
     justifyContent: 'center',
-    borderBottom: '2px solid #bdc3c7'
+    paddingTop: '4px',
+    borderBottom: '1px solid #f1f3f4'
   },
 
   timeLabel: {
-    fontSize: '18px',
-    fontWeight: 'bold',
-    color: '#2c3e50',
-    backgroundColor: '#ffffff',
-    padding: '8px 12px',
-    borderRadius: '15px',
-    border: '2px solid #3498db'
+    fontSize: '10px',
+    color: '#70757a',
+    fontWeight: 500
   },
 
   dayColumn: {
-    borderRight: '2px solid #ecf0f1',
-    backgroundColor: '#ffffff',
+    borderRight: '1px solid #dadce0',
     position: 'relative'
   },
 
   dayColumnWeekend: {
-    backgroundColor: '#fdf2e9'
+    backgroundColor: '#f8f9fa'
   },
 
   hourSlot: {
-    height: '120px',
-    borderBottom: '2px solid #ecf0f1',
-    padding: '10px',
-    position: 'relative'
+    height: '48px',
+    borderBottom: '1px solid #f1f3f4',
+    position: 'relative',
+    padding: '2px'
   },
 
   slotsContainer: {
     display: 'flex',
     flexDirection: 'column',
-    gap: '8px',
+    gap: '2px',
     height: '100%'
   },
 
   availableSlot: {
-    backgroundColor: '#2ecc71',
-    color: 'white',
-    border: 'none',
-    borderRadius: '15px',
-    padding: '12px',
+    backgroundColor: '#e8f0fe',
+    border: '1px solid #4285f4',
+    borderRadius: '4px',
+    padding: '4px 6px',
     cursor: 'pointer',
-    transition: 'all 0.3s ease',
-    boxShadow: '0 4px 8px rgba(46, 204, 113, 0.3)',
-    fontSize: '14px',
-    fontWeight: 'bold',
+    fontSize: '11px',
+    color: '#1a73e8',
+    transition: 'all 0.2s ease',
+    minHeight: '18px',
     ':hover': {
-      backgroundColor: '#27ae60',
-      transform: 'scale(1.05)',
-      boxShadow: '0 6px 12px rgba(46, 204, 113, 0.4)'
+      backgroundColor: '#d2e3fc',
+      boxShadow: '0 1px 3px rgba(0,0,0,0.12)'
     }
   },
 
   slotTime: {
-    fontSize: '16px',
-    fontWeight: 'bold',
-    marginBottom: '4px'
+    fontWeight: 500,
+    fontSize: '10px'
   },
 
   slotStaff: {
-    fontSize: '12px',
-    opacity: 0.9,
-    marginBottom: '4px'
-  },
-
-  slotAction: {
-    fontSize: '12px',
-    fontWeight: 'bold'
+    fontSize: '9px',
+    opacity: 0.8
   },
 
   existingBooking: {
-    backgroundColor: '#e74c3c',
-    color: 'white',
-    borderRadius: '15px',
-    padding: '12px',
+    position: 'absolute',
+    left: '2px',
+    right: '2px',
+    borderRadius: '4px',
+    padding: '4px 6px',
     cursor: 'pointer',
-    transition: 'all 0.3s ease',
-    boxShadow: '0 4px 8px rgba(231, 76, 60, 0.3)',
-    marginBottom: '8px',
+    fontSize: '11px',
+    color: '#ffffff',
+    overflow: 'hidden',
+    zIndex: 1,
+    transition: 'all 0.2s ease',
     ':hover': {
-      backgroundColor: '#c0392b',
-      transform: 'scale(1.02)',
-      boxShadow: '0 6px 12px rgba(231, 76, 60, 0.4)'
+      boxShadow: '0 2px 8px rgba(0,0,0,0.15)'
     }
   },
 
-  bookingTime: {
-    fontSize: '14px',
-    fontWeight: 'bold',
-    marginBottom: '4px'
+  bookingTitle: {
+    fontWeight: 500,
+    fontSize: '11px',
+    whiteSpace: 'nowrap',
+    overflow: 'hidden',
+    textOverflow: 'ellipsis'
   },
 
-  bookingTitle: {
-    fontSize: '12px',
-    marginBottom: '2px'
+  bookingTime: {
+    fontSize: '10px',
+    opacity: 0.9
   },
 
   bookingZone: {
-    fontSize: '11px',
-    opacity: 0.9
+    fontSize: '9px',
+    opacity: 0.8
   },
 
   nowLine: {
     position: 'absolute',
     left: 0,
     right: 0,
-    height: '4px',
-    backgroundColor: '#f39c12',
+    height: '2px',
+    backgroundColor: '#ea4335',
     zIndex: 10,
     display: 'flex',
-    alignItems: 'center',
-    borderRadius: '2px'
+    alignItems: 'center'
   },
 
   nowDot: {
-    width: '16px',
-    height: '16px',
-    backgroundColor: '#f39c12',
+    width: '12px',
+    height: '12px',
+    backgroundColor: '#ea4335',
     borderRadius: '50%',
-    marginLeft: '-8px',
-    border: '3px solid white',
-    boxShadow: '0 2px 4px rgba(0,0,0,0.2)'
-  },
-
-  nowLabel: {
-    backgroundColor: '#f39c12',
-    color: 'white',
-    padding: '4px 8px',
-    borderRadius: '10px',
-    fontSize: '12px',
-    fontWeight: 'bold',
-    marginLeft: '10px'
+    marginLeft: '-6px',
+    border: '2px solid #ffffff'
   }
 };
 
@@ -876,38 +891,36 @@ const modalStyles: any = {
   backdrop: {
     position: 'fixed',
     inset: 0,
-    backgroundColor: 'rgba(0, 0, 0, 0.6)',
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
     zIndex: 1000,
-    padding: '20px'
+    padding: '16px'
   },
 
   modal: {
     backgroundColor: '#ffffff',
-    borderRadius: '20px',
-    boxShadow: '0 20px 40px rgba(0,0,0,0.3)',
-    maxWidth: '500px',
+    borderRadius: '8px',
+    boxShadow: '0 24px 38px 3px rgba(0,0,0,0.14)',
+    maxWidth: '480px',
     width: '100%',
     maxHeight: '90vh',
-    overflow: 'auto',
-    border: '4px solid #3498db'
+    overflow: 'auto'
   },
 
   header: {
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'space-between',
-    padding: '25px 30px',
-    backgroundColor: '#3498db',
-    color: 'white',
-    borderRadius: '16px 16px 0 0'
+    padding: '24px 24px 16px',
+    borderBottom: '1px solid #e8eaed'
   },
 
   title: {
-    fontSize: '22px',
-    fontWeight: 'bold',
+    fontSize: '20px',
+    fontWeight: 500,
+    color: '#3c4043',
     margin: 0
   },
 
@@ -916,128 +929,90 @@ const modalStyles: any = {
     height: '40px',
     border: 'none',
     borderRadius: '50%',
-    backgroundColor: 'rgba(255,255,255,0.2)',
-    color: 'white',
+    backgroundColor: 'transparent',
+    color: '#5f6368',
     cursor: 'pointer',
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
-    fontSize: '20px',
-    fontWeight: 'bold',
-    transition: 'all 0.3s ease',
+    transition: 'background-color 0.2s ease',
     ':hover': {
-      backgroundColor: 'rgba(255,255,255,0.3)',
-      transform: 'scale(1.1)'
+      backgroundColor: '#f1f3f4'
     }
   },
 
   content: {
-    padding: '30px'
+    padding: '24px'
+  },
+
+  infoSection: {
+    marginBottom: '24px'
   },
 
   infoRow: {
     display: 'flex',
     alignItems: 'flex-start',
-    gap: '15px',
-    marginBottom: '20px',
-    padding: '15px',
-    backgroundColor: '#f8f9fa',
-    borderRadius: '15px',
-    border: '2px solid #ecf0f1'
-  },
-
-  infoIcon: {
-    fontSize: '24px',
-    minWidth: '30px'
+    marginBottom: '16px'
   },
 
   infoLabel: {
     fontSize: '14px',
-    color: '#7f8c8d',
-    fontWeight: 'bold',
-    marginBottom: '5px'
+    color: '#5f6368',
+    fontWeight: 500,
+    minWidth: '80px',
+    marginRight: '16px'
   },
 
   infoValue: {
-    fontSize: '16px',
-    color: '#2c3e50',
-    fontWeight: 'bold'
+    fontSize: '14px',
+    color: '#3c4043',
+    fontWeight: 400
   },
 
   errorMessage: {
-    padding: '15px',
-    backgroundColor: '#ffebee',
-    color: '#c62828',
-    borderRadius: '15px',
-    fontSize: '16px',
-    fontWeight: 'bold',
-    marginBottom: '20px',
-    border: '2px solid #ef5350'
+    padding: '12px 16px',
+    backgroundColor: '#fce8e6',
+    color: '#d93025',
+    borderRadius: '4px',
+    fontSize: '14px',
+    marginBottom: '16px'
   },
 
   actions: {
     display: 'flex',
-    gap: '15px',
     justifyContent: 'flex-end',
-    paddingTop: '20px',
-    borderTop: '3px solid #ecf0f1'
-  },
-
-  closeButton: {
-    padding: '12px 24px',
-    border: '2px solid #95a5a6',
-    borderRadius: '25px',
-    backgroundColor: '#ecf0f1',
-    color: '#2c3e50',
-    fontSize: '16px',
-    fontWeight: 'bold',
-    cursor: 'pointer',
-    transition: 'all 0.3s ease',
-    ':hover': {
-      backgroundColor: '#bdc3c7',
-      transform: 'translateY(-2px)'
-    }
+    gap: '8px',
+    paddingTop: '16px',
+    borderTop: '1px solid #e8eaed'
   },
 
   cancelButton: {
-    padding: '12px 24px',
-    border: 'none',
-    borderRadius: '25px',
-    backgroundColor: '#e74c3c',
-    color: 'white',
-    fontSize: '16px',
-    fontWeight: 'bold',
+    padding: '8px 16px',
+    border: '1px solid #dadce0',
+    borderRadius: '4px',
+    backgroundColor: '#ffffff',
+    color: '#3c4043',
+    fontSize: '14px',
+    fontWeight: 500,
     cursor: 'pointer',
-    transition: 'all 0.3s ease',
-    boxShadow: '0 4px 8px rgba(231, 76, 60, 0.3)',
+    transition: 'all 0.2s ease',
     ':hover': {
-      backgroundColor: '#c0392b',
-      transform: 'translateY(-2px)',
-      boxShadow: '0 6px 12px rgba(231, 76, 60, 0.4)'
+      backgroundColor: '#f8f9fa'
+    }
+  },
+
+  deleteButton: {
+    padding: '8px 16px',
+    border: 'none',
+    borderRadius: '4px',
+    backgroundColor: '#d93025',
+    color: '#ffffff',
+    fontSize: '14px',
+    fontWeight: 500,
+    cursor: 'pointer',
+    transition: 'background-color 0.2s ease',
+    ':hover': {
+      backgroundColor: '#b52d20'
     }
   }
 };
-
-// Ajout des animations CSS
-if (typeof document !== 'undefined') {
-  const style = document.createElement('style');
-  style.textContent = `
-    @keyframes bounce {
-      0%, 20%, 50%, 80%, 100% { transform: translateY(0); }
-      40% { transform: translateY(-10px); }
-      60% { transform: translateY(-5px); }
-    }
-    
-    @keyframes pulse {
-      0% { transform: scale(1); }
-      50% { transform: scale(1.05); }
-      100% { transform: scale(1); }
-    }
-    
-    @keyframes loading {
-      0% { transform: translateX(-100%); }
-      100% { transform: translateX(400%); }
-    }
-  `;
-  document.head.appendChild(style);
-}
