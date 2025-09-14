@@ -1,5 +1,5 @@
 'use client';
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 
 const API = process.env.NEXT_PUBLIC_API_URL as string;
 
@@ -18,16 +18,31 @@ type Settings = {
   demo_visio_buffer_before_min?: number | null;
   demo_visio_buffer_after_min?: number | null;
   demo_physique_duration_min?: number | null;
+  demo_physique_real_duration_min?: number | null;
+  demo_physique_buffer_after_min?: number | null;
+  demo_visio_min_gap_min?: number | null;
+  demo_physique_second_min_gap_min?: number | null;
+  availability_calendar_summary?: string | null;
+  availability_keyword_dispo?: string | null;
+  availability_keyword_block?: string | null;
+  availability_ignore_staff_zones?: boolean | null;
 };
 type SZR = { id:number; staff_id:number; zone_id:number; weekday:number; start_time:string; end_time:string };
+type StaffZone = { staff_id:number; zone_id:number };
 
 export default function Admin(){
+  const SHOW_LEGACY = false; // Masque les anciennes sections (règles/except)
   // ---- STATE ----
   const [zones,setZones]=useState<Zone[]>([]);
   const [rules,setRules]=useState<Rule[]>([]);
   const [exs,setExs]=useState<Ex[]>([]);
   const [settings,setSettings]=useState<Settings|null>(null);
   const [szr,setSzr]=useState<SZR[]>([]);
+  const [staffs,setStaffs]=useState<{id:number;name:string}[]>([]);
+  const [staffZones,setStaffZones]=useState<StaffZone[]>([]);
+  const [calChecks, setCalChecks] = useState<{staff_id:number; staff_name:string; found:boolean; calendar_id?:string|null; error?:string|null; avail?:string[]; block?:string[]}[]|null>(null);
+  const [checkDate, setCheckDate] = useState<string>(()=> new Date().toISOString().slice(0,10));
+  const staffMap = useMemo(()=> Object.fromEntries(staffs.map(s=>[s.id,s.name])), [staffs]);
 
   const [zn,setZn]=useState({name:'',color:'#6b21a8'});
   const [rl,setRl]=useState<Partial<Rule>>({zone_id:0,weekday:1,start_time:'09:00:00',end_time:'12:00:00'});
@@ -36,18 +51,25 @@ export default function Admin(){
 
   // ---- LOAD ----
   async function loadAll(){
-    const [z,r,s,sz] = await Promise.all([
+    const [z,s,st,szg] = await Promise.all([
       fetch(`${API}/admin/zones`).then(r=>r.json()).catch(()=>[]),
-      fetch(`${API}/admin/zone_rules`).then(r=>r.json()).catch(()=>[]),
       fetch(`${API}/admin/settings`).then(r=>r.json()).catch(()=>null),
-      fetch(`${API}/admin/staff_zone_rules`).then(r=>r.json()).catch(()=>[])
+      fetch(`${API}/admin/staff`).then(r=>r.json()).catch(()=>[]),
+      fetch(`${API}/admin/staff_zones`).then(r=>r.json()).catch(()=>[])
     ]);
     setZones(Array.isArray(z)?z:[]);
-    setRules(Array.isArray(r)?r:[]);
     setSettings(s??null);
-    setSzr(Array.isArray(sz)?sz:[]);
+    setStaffs(Array.isArray(st)?st:[]);
+    setStaffZones(Array.isArray(szg)?szg:[]);
   }
   useEffect(()=>{ loadAll(); },[]);
+  // Défaut: si aucun staff_id n'est sélectionné ou invalide, positionner sur le premier staff dispo
+  useEffect(()=>{
+    if (staffs.length) {
+      setSzrNew(p => (p.staff_id && staffs.some(s=>s.id===p.staff_id)) ? p : { ...p, staff_id: staffs[0].id });
+      setSzr(p => p.map(x => staffs.some(s=>s.id===x.staff_id) ? x : ({ ...x, staff_id: staffs[0].id })));
+    }
+  },[staffs]);
 
   async function reloadSZR(){ const d=await fetch(`${API}/admin/staff_zone_rules`).then(r=>r.json()).catch(()=>[]); setSzr(Array.isArray(d)?d:[]); }
 
@@ -82,6 +104,21 @@ export default function Admin(){
     await fetch(`${API}/admin/staff_zone_rules/${id}`,{method:'DELETE'}); reloadSZR();
   }
 
+  // Mapping global Staff ↔ Zones
+  async function setStaffZone(staff_id:number, zone_id:number, enabled:boolean){
+    await fetch(`${API}/admin/staff_zones`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ staff_id, zone_id, enabled }) });
+    const data = await fetch(`${API}/admin/staff_zones`).then(r=>r.json()).catch(()=>[]);
+    setStaffZones(Array.isArray(data)?data:[]);
+  }
+
+  async function checkCalendars(){
+    try{
+      const res = await fetch(`${API}/admin/availability_calendar_check?date=${encodeURIComponent(checkDate)}`).then(r=>r.json());
+      if (Array.isArray(res?.results)) setCalChecks(res.results);
+      else setCalChecks([]);
+    }catch{ setCalChecks([]); }
+  }
+
   return (
     <div style={styles.container}>
       <header style={styles.header}>
@@ -104,14 +141,94 @@ export default function Admin(){
           <p style={styles.cardDescription}>Synchronisez les calendriers Google des membres de l'équipe</p>
         </div>
         <div style={styles.buttonGroup}>
-          <a href={`${API}/auth/google/init?staff_id=1`} style={styles.primaryButton}>
-            <GoogleIcon />
-            Connecter Staff 1
-          </a>
-          <a href={`${API}/auth/google/init?staff_id=2`} style={styles.primaryButton}>
-            <GoogleIcon />
-            Connecter Staff 2
-          </a>
+          {staffs.length ? staffs.map(s => (
+            <a key={s.id} href={`${API}/auth/google/init?staff_id=${s.id}`} style={styles.primaryButton}>
+              <GoogleIcon />
+              Connecter {s.name}
+            </a>
+          )) : (
+            <>
+              <a href={`${API}/auth/google/init?staff_id=1`} style={styles.primaryButton}>
+                <GoogleIcon />
+                Connecter Staff 1
+              </a>
+              <a href={`${API}/auth/google/init?staff_id=2`} style={styles.primaryButton}>
+                <GoogleIcon />
+                Connecter Staff 2
+              </a>
+            </>
+          )}
+        </div>
+        <div style={{padding:'0 24px 24px'}}>
+          <div style={{display:'flex', gap:12, alignItems:'center'}}>
+            <input type="date" value={checkDate} onChange={e=>setCheckDate(e.target.value)} style={styles.input} />
+            <button onClick={checkCalendars} style={styles.secondaryButton}>Vérifier calendrier DISPO</button>
+          </div>
+          {calChecks && (
+            <div style={{marginTop:12}}>
+              <table style={styles.table}>
+                <thead>
+                  <tr style={styles.tableHeader}>
+                    <th style={styles.th}>Staff</th>
+                    <th style={styles.th}>Trouvé</th>
+                    <th style={styles.th}>Calendar ID</th>
+                    <th style={styles.th}>DISPO à la date</th>
+                    <th style={styles.th}>PAS DISPO à la date</th>
+                    <th style={styles.th}>Erreur</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {calChecks.map((r,i)=>(
+                    <tr key={i} style={styles.tableRow}>
+                      <td style={styles.td}>{r.staff_name} (#{r.staff_id})</td>
+                      <td style={styles.td}>{r.found ? '✅' : '❌'}</td>
+                      <td style={styles.td}>{r.calendar_id || ''}</td>
+                      <td style={styles.td}>{(r.avail||[]).join(', ')}</td>
+                      <td style={styles.td}>{(r.block||[]).join(', ')}</td>
+                      <td style={styles.td}>{r.error || ''}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      </section>
+
+      {/* MAPPING GLOBAL STAFF ↔ ZONES */}
+      <section style={styles.card}>
+        <div style={styles.cardHeader}>
+          <h2 style={styles.cardTitle}>Attribution globale Staff ↔ Zones</h2>
+          <p style={styles.cardDescription}>Cochez les zones autorisées pour chaque membre du staff (s'applique tous les jours)</p>
+        </div>
+        <div style={styles.tableContainer}>
+          <table style={styles.table}>
+            <thead>
+              <tr style={styles.tableHeader}>
+                <th style={styles.th}>Staff</th>
+                {zones.map(z => (
+                  <th key={z.id} style={styles.th}>{z.name}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {staffs.map(s => {
+                return (
+                  <tr key={s.id} style={styles.tableRow}>
+                    <td style={styles.td}>{s.name}</td>
+                    {zones.map(z => {
+                      const checked = staffZones.some(x => x.staff_id===s.id && x.zone_id===z.id);
+                      return (
+                        <td key={z.id} style={styles.td}>
+                          <input type="checkbox" checked={checked} onChange={e=> setStaffZone(s.id, z.id, e.target.checked)} />
+                        </td>
+                      );
+                    })}
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
         </div>
       </section>
 
@@ -119,6 +236,11 @@ export default function Admin(){
         <div style={styles.cardHeader}>
           <h2 style={styles.cardTitle}>Zones</h2>
           <p style={styles.cardDescription}>Gérez les différentes zones de réservation</p>
+        </div>
+        <div style={{padding:'0 24px 12px'}}>
+          <button onClick={async()=>{ await fetch(`${API}/admin/ensure_visio_zone`, { method:'POST' }); loadAll(); }} style={styles.secondaryButton}>
+            ➕ Créer la zone VISIO (activer pour tous)
+          </button>
         </div>
         <div style={styles.formRow}>
           <input 
@@ -194,6 +316,7 @@ export default function Admin(){
         </div>
       </section>
 
+      {SHOW_LEGACY && (
       <section style={styles.card}>
         <div style={styles.cardHeader}>
           <h2 style={styles.cardTitle}>Règles hebdomadaires</h2>
@@ -272,7 +395,9 @@ export default function Admin(){
           </table>
         </div>
       </section>
+      )}
 
+      {SHOW_LEGACY && (
       <section style={styles.card}>
         <div style={styles.cardHeader}>
           <h2 style={styles.cardTitle}>Exceptions datées</h2>
@@ -368,6 +493,7 @@ export default function Admin(){
           </table>
         </div>
       </section>
+      )}
 
       <section style={styles.card}>
         <div style={styles.cardHeader}>
@@ -387,6 +513,10 @@ export default function Admin(){
               ['demo_visio_buffer_before_min','Buffer avant visio (min)'],
               ['demo_visio_buffer_after_min','Buffer après visio (min)'],
               ['demo_physique_duration_min','Durée physique (min)'],
+              ['demo_physique_real_duration_min','Durée réelle physique (min)'],
+              ['demo_physique_buffer_after_min','Blocage après physique (min)'],
+              ['demo_physique_second_min_gap_min','Écart min 1er→2nd physique (min)'],
+              ['demo_visio_min_gap_min','Écart min visio (min)'],
             ].map(([k,label])=>(
               <label key={k} style={styles.settingItem}>
                 <span style={styles.settingLabel}>{label}</span>
@@ -398,6 +528,44 @@ export default function Admin(){
                 />
               </label>
             ))}
+            <label style={styles.settingItem}>
+              <span style={styles.settingLabel}>Calendrier dispo (nom)</span>
+              <input 
+                type="text" 
+                value={settings.availability_calendar_summary ?? ''} 
+                onChange={e=>setSettings({...settings, availability_calendar_summary: e.target.value})} 
+                style={styles.settingInput}
+              />
+            </label>
+            <label style={styles.settingItem}>
+              <span style={styles.settingLabel}>Ignorer Staff↔Zones (toutes zones)</span>
+              <input 
+                type="checkbox"
+                checked={Boolean(settings.availability_ignore_staff_zones)}
+                onChange={e=>setSettings({...settings, availability_ignore_staff_zones: e.target.checked})}
+                style={{ width: 18, height: 18 }}
+              />
+            </label>
+            <label style={styles.settingItem}>
+              <span style={styles.settingLabel}>Mot-clés DISPO (CSV)</span>
+              <input 
+                type="text" 
+                placeholder="DISPO"
+                value={settings.availability_keyword_dispo ?? ''} 
+                onChange={e=>setSettings({...settings, availability_keyword_dispo: e.target.value})} 
+                style={styles.settingInput}
+              />
+            </label>
+            <label style={styles.settingItem}>
+              <span style={styles.settingLabel}>Mot-clés PAS DISPO (CSV)</span>
+              <input 
+                type="text" 
+                placeholder="PAS DISPO, INDISPO"
+                value={settings.availability_keyword_block ?? ''} 
+                onChange={e=>setSettings({...settings, availability_keyword_block: e.target.value})} 
+                style={styles.settingInput}
+              />
+            </label>
             <button onClick={()=>saveSettings(settings)} style={styles.saveAllButton}>
               <SaveIcon />
               Enregistrer les paramètres
@@ -407,6 +575,7 @@ export default function Admin(){
       </section>
 
       {/* Générer planning express */}
+      {SHOW_LEGACY && (
       <section style={styles.card}>
         <div style={styles.cardHeader}>
           <h2 style={styles.cardTitle}>Génération rapide de planning</h2>
@@ -470,8 +639,10 @@ export default function Admin(){
           </div>
         </div>
       </section>
+      )}
 
-      {/* RÈGLES STAFF × ZONE */}
+      {/* RÈGLES STAFF × ZONE (legacy horaires) */}
+      {SHOW_LEGACY && (
       <section style={styles.card}>
         <div style={styles.cardHeader}>
           <h2 style={styles.cardTitle}>Règles Staff × Zone</h2>
@@ -479,7 +650,7 @@ export default function Admin(){
         </div>
         <div style={styles.formRow}>
           <select value={szrNew.staff_id} onChange={e=>setSzrNew({...szrNew,staff_id:Number(e.target.value)})} style={styles.select}>
-            {[1,2].map(s=> <option key={s} value={s}>Staff {s}</option>)}
+            {staffs.map(s=> <option key={s.id} value={s.id}>{s.name}</option>)}
           </select>
           <select value={szrNew.zone_id} onChange={e=>setSzrNew({...szrNew,zone_id:Number(e.target.value)})} style={styles.select}>
             <option value={0}>Zone…</option>
@@ -515,7 +686,7 @@ export default function Admin(){
               <td style={styles.td}>{r.id}</td>
               <td style={styles.td}>
                 <select value={r.staff_id} onChange={e=>setSzr(p=>p.map(x=>x.id===r.id?{...x,staff_id:Number(e.target.value)}:x))} style={styles.tableSelect}>
-                  {[1,2].map(s=><option key={s} value={s}>Staff {s}</option>)}
+                  {staffs.map(s=><option key={s.id} value={s.id}>{s.name}</option>)}
                 </select>
               </td>
               <td style={styles.td}>
@@ -560,6 +731,7 @@ export default function Admin(){
           </table>
         </div>
       </section>
+      )}
       </main>
     </div>
   );

@@ -5,6 +5,7 @@ import dayjs from 'dayjs';
 import utc from 'dayjs/plugin/utc';
 import tz from 'dayjs/plugin/timezone';
 import 'dayjs/locale/fr';
+import BookingModal from './components/BookingModal';
 dayjs.locale('fr');
 dayjs.extend(utc);
 dayjs.extend(tz);
@@ -20,11 +21,8 @@ type Slot = {
   available_staff_names?: string[];
 };
 
-type Zone = { id: number; name: string; color?: string };
-type ZoneRule = { id: number; zone_id: number; weekday: number; start_time: string; end_time: string };
-type StaffZoneRule = { id:number; staff_id:number; zone_id:number; weekday:number; start_time:string; end_time:string };
-type ZoneException = { id:number; zone_id:number; date:string; start_time:string; end_time:string; note?:string };
-type Booking = { id:number; start:string; end:string; zone:string; zone_id:number; staff_name?:string; client_name:string; title?:string; meeting_mode?: 'visio' | 'physique' };
+type Booking = { id:number; start:string; end:string; zone:string; zone_id:number; staff_id?:number; staff_name?:string; client_name:string; restaurant_name?:string; city?:string; title?:string; meeting_mode?: 'visio' | 'physique' };
+type StaffZone = { staff_id:number; zone_id:number };
 
 export default function CalendarWeek() {
   function weekStartMonday(base: any){
@@ -34,30 +32,29 @@ export default function CalendarWeek() {
   }
   const [weekStart, setWeekStart] = useState(weekStartMonday(dayjs()));
   const [slots, setSlots] = useState<Slot[]>([]);
-  const [zonesList, setZonesList] = useState<Zone[]>([]);
-  const [zoneRules, setZoneRules] = useState<ZoneRule[]>([]);
-  const [staffZoneRules, setStaffZoneRules] = useState<StaffZoneRule[]>([]);
-  const [zoneExceptions, setZoneExceptions] = useState<ZoneException[]>([]);
+  const [mergedAvail, setMergedAvail] = useState<Array<{start:string; end:string; staff_id:number}>>([]);
+  const [zonesList, setZonesList] = useState<{id:number; name:string; color?:string}[]>([]);
+  const [daySel, setDaySel] = useState<Record<string, { morning?: number; afternoon?: number }>>({});
+  // Zones et règles supprimées de l'UI; on ne garde que les slots calculés par l'API
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [staffs, setStaffs] = useState<{ id: number; name: string }[]>([]);
   const [settings, setSettings] = useState<any|null>(null);
+  const [staffZones, setStaffZones] = useState<StaffZone[]>([]);
+  const zonesById = useMemo(()=>{
+    const m = new Map<number,string>();
+    for (const z of zonesList) m.set(z.id, z.name);
+    return m;
+  },[zonesList]);
+  const zoneColorById = useMemo(()=>{
+    const m = new Map<number,string>();
+    for (const z of zonesList) if ((z as any).color) m.set(z.id, (z as any).color as string);
+    return m;
+  },[zonesList]);
   const staffMap = useMemo(() => Object.fromEntries(staffs.map(s => [s.id, s.name])), [staffs]);
-  const zoneByName = useMemo(() => Object.fromEntries(zonesList.map(z => [z.name, z])), [zonesList]);
-  const zoneById = useMemo(() => Object.fromEntries(zonesList.map(z => [z.id, z])), [zonesList]);
-  // Sélection de zone par demi-journée, stockée localement (non persistée côté serveur)
-  const [dayZoneSel, setDayZoneSel] = useState<Record<string, { morning?: string; afternoon?: string }>>(() => {
-    if (typeof window === 'undefined') return {};
-    try { const s = localStorage.getItem('dayZoneSel'); return s ? JSON.parse(s) : {}; } catch { return {}; }
-  });
-  useEffect(() => { try { localStorage.setItem('dayZoneSel', JSON.stringify(dayZoneSel)); } catch {} }, [dayZoneSel]);
-  function selectedZoneFor(dateStr: string, half: 'morning'|'afternoon') { return dayZoneSel[dateStr]?.[half]; }
-  function setSelectedZone(dateStr: string, half: 'morning'|'afternoon', zoneName?: string) {
-    setDayZoneSel(prev => ({ ...prev, [dateStr]: { ...(prev[dateStr]||{}), [half]: zoneName || undefined } }));
-  }
-
-  const [zoneFilter, setZoneFilter] = useState<string | undefined>();
-  const [staffFilter, setStaffFilter] = useState<number | undefined>();
+  // Plus de sélecteurs de zones ni de filtres; on construit directement par staff
   const [viewMode, setViewMode] = useState<'week' | 'day'>('week');
+  const [viewScope, setViewScope] = useState<'global'|'zone'>('global');
+  const [scopeZoneId, setScopeZoneId] = useState<number|undefined>(undefined);
 
   const [modalOpen, setModalOpen] = useState(false);
   const [selectedSlot, setSelectedSlot] = useState<Slot | null>(null);
@@ -66,28 +63,20 @@ export default function CalendarWeek() {
   const [mounted, setMounted] = useState(false);
   useEffect(() => { setMounted(true); }, []);
 
-  // Edition ponctuelle
-  const [editDay, setEditDay] = useState<string | null>(null);
-  const [editZoneId, setEditZoneId] = useState<number>(0);
-  const [editStart, setEditStart] = useState('09:00:00');
-  const [editEnd, setEditEnd] = useState('18:00:00');
-  const [editLoading, setEditLoading] = useState(false);
-  const [editMsg, setEditMsg] = useState<string | null>(null);
+  // Plus d'édition ponctuelle liée aux zones
 
-  // Chargements init
+  // Chargements init: staff, settings, staff↔zones, zones
   useEffect(() => {
     Promise.all([
-      fetch(`${API}/admin/zones`).then(r => r.json()).catch(() => []),
-      fetch(`${API}/admin/zone_rules`).then(r => r.json()).catch(() => []),
-      fetch(`${API}/admin/staff_zone_rules`).then(r => r.json()).catch(() => []),
       fetch(`${API}/admin/staff`).then(r => r.json()).catch(() => []),
-      fetch(`${API}/admin/settings`).then(r => r.json()).catch(() => null)
-    ]).then(([z, zr, szr, st, se]) => {
-      setZonesList(Array.isArray(z) ? z : []);
-      setZoneRules(Array.isArray(zr) ? zr : []);
-      setStaffZoneRules(Array.isArray(szr) ? szr : []);
+      fetch(`${API}/admin/settings`).then(r => r.json()).catch(() => null),
+      fetch(`${API}/admin/staff_zones`).then(r => r.json()).catch(() => []),
+      fetch(`${API}/admin/zones`).then(r => r.json()).catch(() => [])
+    ]).then(([st, se, sz, z]) => {
       setStaffs(Array.isArray(st) ? st : []);
       setSettings(se);
+      setStaffZones(Array.isArray(sz) ? sz : []);
+      setZonesList(Array.isArray(z) ? z : []);
     });
   }, []);
 
@@ -95,26 +84,58 @@ export default function CalendarWeek() {
   function reloadSlots(base = weekStart) {
     const from = base.startOf('day').toISOString();
     const to = base.add(6, 'day').endOf('day').toISOString();
-    const q = new URLSearchParams({ from, to } as any);
-    fetch(`${API}/availability?${q.toString()}&_=${Date.now()}`, { cache: 'no-store' })
-      .then(r => r.json())
-      .then(d => setSlots(Array.isArray(d.slots) ? d.slots : []))
-      .catch(() => setSlots([]));
+    const ids = (staffs && staffs.length>=2) ? [staffs[0].id, staffs[1].id] : [];
+    // Vue par staff: charger uniquement ce staff pour alléger
+    // pas de vue par staff
+    if (ids.length === 2) {
+      const [id1, id2] = ids;
+      const q1 = new URLSearchParams({ from, to, only: 'merged', staff_id: String(id1) } as any);
+      const q2 = new URLSearchParams({ from, to, only: 'merged', staff_id: String(id2) } as any);
+      Promise.all([
+        fetch(`${API}/availability?${q1.toString()}&_=${Date.now()}`, { cache: 'no-store' }).then(r=>r.json()).catch(()=>({merged:[]})),
+        fetch(`${API}/availability?${q2.toString()}&_=${Date.now()}`, { cache: 'no-store' }).then(r=>r.json()).catch(()=>({merged:[]})),
+      ]).then(([d1,d2])=>{
+        const m1 = Array.isArray(d1.merged)? d1.merged : [];
+        const m2 = Array.isArray(d2.merged)? d2.merged : [];
+        setMergedAvail([ ...m1, ...m2 ]);
+        setSlots([]);
+      }).catch(()=>{ setMergedAvail([]); setSlots([]); });
+    } else {
+      const q = new URLSearchParams({ from, to, only: 'merged' } as any);
+      fetch(`${API}/availability?${q.toString()}&_=${Date.now()}`, { cache: 'no-store' })
+        .then(r => r.json())
+        .then(d => { setMergedAvail(Array.isArray(d.merged)? d.merged : []); setSlots([]); })
+        .catch(() => { setMergedAvail([]); setSlots([]); });
+    }
   }
-  useEffect(() => { reloadSlots(); }, [weekStart]);
+  useEffect(() => { reloadSlots(); }, [weekStart, viewScope]);
 
-  // Charger exceptions et réservations
+  // Charger les sélections de zones par demi-journée pour l'en-tête
   useEffect(() => {
     const from = weekStart.startOf('day').format('YYYY-MM-DD');
     const to = weekStart.add(6, 'day').endOf('day').format('YYYY-MM-DD');
-    fetch(`${API}/admin/zone_exceptions?from=${from}&to=${to}`)
-      .then(r => r.json()).then(d => setZoneExceptions(Array.isArray(d) ? d : []))
-      .catch(() => setZoneExceptions([]));
+    fetch(`${API}/admin/day_zone_selection?from=${from}&to=${to}`)
+      .then(r=>r.json())
+      .then(arr => {
+        if (!Array.isArray(arr)) { setDaySel({}); return; }
+        const map: Record<string, { morning?: number; afternoon?: number }> = {};
+        for (const it of arr) {
+          const key = String(it.date);
+          if (!map[key]) map[key] = {};
+          if (String(it.half) === 'morning') map[key].morning = Number(it.zone_id);
+          else map[key].afternoon = Number(it.zone_id);
+        }
+        setDaySel(map);
+      }).catch(()=>setDaySel({}));
+  }, [weekStart]);
 
+  // Charger les réservations
+  useEffect(() => {
+    const from = weekStart.startOf('day').format('YYYY-MM-DD');
+    const to = weekStart.add(6, 'day').endOf('day').format('YYYY-MM-DD');
     const qb = new URLSearchParams({
       from: `${from}T00:00:00Z`,
-      to: `${to}T23:59:59Z`,
-      ...(zoneFilter ? { zone: zoneFilter } : {})
+      to: `${to}T23:59:59Z`
     } as any);
     fetch(`${API}/admin/bookings?${qb.toString()}`)
       .then(r => r.json())
@@ -126,15 +147,18 @@ export default function CalendarWeek() {
           end: new Date(x.ends_at).toISOString(),
           zone: x.zone_name,
           zone_id: x.zone_id,
+          staff_id: x.staff_id,
           staff_name: x.staff_name || undefined,
           client_name: x.client_name || '',
+          restaurant_name: x.restaurant_name || undefined,
+          city: x.city || undefined,
           title: x.title || x.client_name || '',
           meeting_mode: (x.meeting_mode === 'visio' || x.meeting_mode === 'physique') ? x.meeting_mode : undefined
         }));
         setBookings(mapped);
       })
       .catch(() => setBookings([]));
-  }, [weekStart, zoneFilter]);
+  }, [weekStart]);
 
   // Recharge uniquement les réservations (après annulation, etc.)
   async function reloadBookings() {
@@ -143,8 +167,7 @@ export default function CalendarWeek() {
       const to = weekStart.add(6, 'day').endOf('day').format('YYYY-MM-DD');
       const qb = new URLSearchParams({
         from: `${from}T00:00:00Z`,
-        to: `${to}T23:59:59Z`,
-        ...(zoneFilter ? { zone: zoneFilter } : {})
+        to: `${to}T23:59:59Z`
       } as any);
       const arr = await fetch(`${API}/admin/bookings?${qb.toString()}`).then(r=>r.json());
       if (!Array.isArray(arr)) { setBookings([]); return; }
@@ -154,133 +177,61 @@ export default function CalendarWeek() {
         end: new Date(x.ends_at).toISOString(),
         zone: x.zone_name,
         zone_id: x.zone_id,
+        staff_id: x.staff_id,
         staff_name: x.staff_name || undefined,
         client_name: x.client_name || '',
+        restaurant_name: x.restaurant_name || undefined,
+        city: x.city || undefined,
         title: x.title || x.client_name || ''
       }));
       setBookings(mapped);
     } catch { setBookings([]); }
   }
 
-  function asTime(v: string) { return v.length === 5 ? `${v}:00` : v; }
-  async function applyDayConfig(dateStr: string) {
-    if (!editZoneId) { setEditMsg('Choisissez une zone'); return; }
-    setEditLoading(true); setEditMsg(null);
-    try {
-      const body = {
-        zone_id: editZoneId,
-        from_date: dateStr,
-        to_date: dateStr,
-        start_time: asTime(editStart),
-        end_time: asTime(editEnd),
-        replace: true
-      };
-      const res = await fetch(`${API}/admin/generate_exceptions_range`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body)
-      });
-      if (!res.ok) {
-        const e = await res.json().catch(() => ({}));
-        throw new Error(e?.message || e?.error || 'Erreur enregistrement');
-      }
-      setEditMsg('Enregistré');
-      reloadSlots();
-    } catch (e: any) {
-      setEditMsg(e.message || 'Erreur');
-    } finally { setEditLoading(false); }
-  }
+  // plus de configuration par zone
 
   // Jours affichés
-  const days = useMemo(() => Array.from({ length: 7 }, (_, i) => weekStart.add(i, 'day')), [weekStart]);
+  const days = useMemo(() => Array.from({ length: 6 }, (_, i) => weekStart.add(i, 'day')), [weekStart]);
 
-  // Règles des zones par weekday
-  const rulesByWeekday = useMemo(() => {
-    const map = new Map<number, Map<number, Array<{ start: string; end: string }>>>();
-
-    const feed = (arr: Array<{ zone_id:number; weekday:number; start_time:string; end_time:string }>) => {
-      for (const r of arr) {
-        const wd = ((r.weekday % 7) + 7) % 7;
-        if (!map.has(wd)) map.set(wd, new Map());
-        const m = map.get(wd)!;
-        if (!m.has(r.zone_id)) m.set(r.zone_id, []);
-        m.get(r.zone_id)!.push({ start: r.start_time, end: r.end_time });
-      }
-    };
-
-    if (zoneRules.length) feed(zoneRules);
-    else if (staffZoneRules.length) feed(staffZoneRules);
-
-    for (const m of map.values()) {
-      for (const [k, arr] of m.entries()) {
-        arr.sort((a, b) => a.start.localeCompare(b.start) || a.end.localeCompare(b.end));
-        const uniq: typeof arr = [];
-        let last: {start:string;end:string}|null = null;
-        for (const x of arr) {
-          if (!last || last.start!==x.start || last.end!==x.end) { uniq.push(x); last = x; }
-        }
-        m.set(k, uniq);
-      }
-    }
-    return map;
-  }, [zoneRules, staffZoneRules]);
-
-  function zonesForDay(wd: number) {
-    const m = rulesByWeekday.get(wd);
-    if (!m) return [] as Array<{ id: number; name: string; color?: string; ranges: string[] }>;
-    const zmap = Object.fromEntries(zonesList.map(z => [z.id, z]));
-    const out: Array<{ id: number; name: string; color?: string; ranges: string[] }> = [];
-    for (const [zoneId, ranges] of m.entries()) {
-      const z = zmap[zoneId]; if (!z) continue;
-      if (zoneFilter && z.name !== zoneFilter) continue;
-      out.push({ id: zoneId, name: z.name, color: z.color, ranges: ranges.map(r => `${r.start.slice(0,5)}–${r.end.slice(0,5)}`) });
-    }
-    out.sort((a, b) => a.name.localeCompare(b.name));
-    return out;
-  }
-
-  // Exceptions par date
-  const exceptionsByDate = useMemo(() => {
-    const map = new Map<string, Map<number, Array<{start:string;end:string}>>>();
-    for (const e of zoneExceptions) {
-      if (!map.has(e.date)) map.set(e.date, new Map());
-      const m = map.get(e.date)!;
-      if (!m.has(e.zone_id)) m.set(e.zone_id, []);
-      m.get(e.zone_id)!.push({ start: e.start_time, end: e.end_time });
-    }
-    for (const m of map.values()) {
-      for (const arr of m.values()) arr.sort((a,b)=> a.start.localeCompare(b.start));
-    }
-    return map;
-  }, [zoneExceptions]);
+  // Plus de règles/ exceptions par zone affichées côté UI
 
   // Configuration des heures
-  const hourStart = 6;
-  const hourEnd = 22;
+  const hourStart = 9;
+  const hourEnd = 19;
   const hours = useMemo(
     () => Array.from({ length: hourEnd - hourStart + 1 }, (_, i) => hourStart + i),
     []
   );
-  const PX_PER_HOUR = 64;
+  const PX_PER_HOUR = 84;
   const totalHeight = (hourEnd - hourStart) * PX_PER_HOUR;
   const [, setTick] = useState(0);
+  const [hoverHint, setHoverHint] = useState<{ key: string; top: number; label: string } | null>(null);
   useEffect(() => {
     const id = setInterval(() => setTick(x => x + 1), 60_000);
     return () => clearInterval(id);
   }, []);
 
   // Slots filtrés
-  const filteredSlots = useMemo(() => {
-    return slots.filter(s => {
-      if (zoneFilter && s.zone !== zoneFilter) return false;
-      if (staffFilter && !s.available_staff_ids?.includes(staffFilter)) return false;
-      return true;
-    });
-  }, [slots, zoneFilter, staffFilter]);
+  const filteredSlots = useMemo(() => slots, [slots]);
 
   // Événements UI
   type UiEvent = {
-    id: string; kind: 'slot' | 'booking'; startISO: string; endISO: string;
-    startMin: number; endMin: number; zone: string; color: string; title: string; subtitle?: string; clickable: boolean;
-    lane?: number; lanesCount?: number;
+    id: string;
+    kind: 'slot' | 'booking' | 'busy';
+    startISO: string;
+    endISO: string;
+    startMin: number;
+    endMin: number;
+    zone: string;
+    zone_id?: number;
+    staffId?: number;
+    color: string;
+    title: string;
+    subtitle?: string;
+    clickable: boolean;
+    lane?: number;
+    lanesCount?: number;
+    onlyVisio?: boolean;
   };
   
   function minutesFromStart(d: dayjs.Dayjs) {
@@ -289,96 +240,181 @@ export default function CalendarWeek() {
   }
   
   function eventsForDay(day: dayjs.Dayjs): UiEvent[] {
+    const staffOrder = (staffs && staffs.length >= 2)
+      ? [staffs[0].id, staffs[1].id]
+      : [1, 2]; // Deux colonnes: STAFF 1 et STAFF 2
     const evts: UiEvent[] = [];
-    // Regroupe les créneaux par (start,end) quand aucune zone n'est sélectionnée
-    const groups = new Map<string, { startISO:string; endISO:string; zones:Set<string>; staff:Set<string> }>();
-    for (const s of filteredSlots) {
-      const ds = dayjs(s.start).tz('Europe/Paris');
-      if (!ds.isSame(day, 'day')) continue;
-      const de = dayjs(s.end).tz('Europe/Paris');
-      const dateStr = day.tz('Europe/Paris').format('YYYY-MM-DD');
-      const half: 'morning'|'afternoon' = ds.hour() < 13 ? 'morning' : 'afternoon';
-      const sel = selectedZoneFor(dateStr, half);
-      if (sel && s.zone !== sel) continue;
 
-      if (!sel) {
-        const key = `${s.start}|${s.end}`;
-        if (!groups.has(key)) groups.set(key, { startISO: s.start, endISO: s.end, zones: new Set(), staff: new Set() });
-        const g = groups.get(key)!;
-        g.zones.add(s.zone);
-        const names = (s.available_staff_names && s.available_staff_names.length
-          ? s.available_staff_names
-          : (s.available_staff_ids||[]).map(id => staffMap[id] || `Staff ${id}`));
-        for (const n of names) g.staff.add(n);
+    for (let lane = 0; lane < 2; lane++) {
+      const staffId = staffOrder[lane];
+      if (staffId == null) continue;
+      
+      // Use pre-merged availability from API when present; otherwise merge locally
+      let merged: { start: string; end: string }[] = [];
+      const fromApi = (mergedAvail || []).filter(m => Number(m.staff_id) === Number(staffId))
+        .filter(m => dayjs(m.start).tz('Europe/Paris').isSame(day, 'day'))
+        .map(m => ({ start: m.start, end: m.end }))
+        .sort((a,b)=> Date.parse(a.start) - Date.parse(b.start));
+      if (fromApi.length) {
+        merged = fromApi;
       } else {
-        // Sélection de zone active → affiche le créneau pour cette zone uniquement (pas de regroupement)
-        const zc = (zoneByName[s.zone]?.color) || '#4285f4';
-        const title = `${ds.format('HH:mm')} → ${de.format('HH:mm')}`;
-        const subtitle = (s.available_staff_names && s.available_staff_names.length
-          ? s.available_staff_names
-          : s.available_staff_ids.map(id => staffMap[id] || `Staff ${id}`)
-        ).join(', ');
+        const intervals: { start: string; end: string }[] = [];
+        for (const s of filteredSlots) {
+          const ds = dayjs(s.start).tz('Europe/Paris');
+          const de = dayjs(s.end).tz('Europe/Paris');
+          if (!ds.isSame(day, 'day')) continue;
+          if (!(s.available_staff_ids || []).includes(Number(staffId))) continue;
+          intervals.push({ start: s.start, end: s.end });
+        }
+        intervals.sort((a, b) => Date.parse(a.start) - Date.parse(b.start) || Date.parse(a.end) - Date.parse(b.end));
+        for (const it of intervals) {
+          if (!merged.length) { merged.push({ start: it.start, end: it.end }); continue; }
+          const last = merged[merged.length - 1];
+          if (Date.parse(it.start) <= Date.parse(last.end)) {
+            if (Date.parse(it.end) > Date.parse(last.end)) last.end = it.end;
+          } else {
+            merged.push({ start: it.start, end: it.end });
+          }
+        }
+      }
+      // Build green availability and red busy complement
+      const dayStart = day.tz('Europe/Paris').hour(hourStart).minute(0).second(0).millisecond(0);
+      const dayEnd = day.tz('Europe/Paris').hour(hourEnd).minute(0).second(0).millisecond(0);
+      let cursor = dayStart;
+      for (const m of merged) {
+        const ms = dayjs(m.start).tz('Europe/Paris');
+        const me = dayjs(m.end).tz('Europe/Paris');
+        // Vue par zone: ne pas afficher les fenêtres de dispo (slots) pour éviter la confusion
+        if (viewScope!=='zone') {
+        // busy before interval
+        if (ms.isAfter(cursor)) {
+          evts.push({
+            id: `busy-${staffId}-${cursor.toISOString()}-${ms.toISOString()}`,
+            kind: 'busy',
+            startISO: cursor.toISOString(),
+            endISO: ms.toISOString(),
+            startMin: minutesFromStart(cursor),
+            endMin: minutesFromStart(ms),
+            zone: '',
+            color: 'transparent',
+            title: '',
+            clickable: false,
+            lane,
+            lanesCount: 2
+          });
+        }
+        // avail interval:
+        // - Bleu si la fenêtre est plus courte que la durée d'un RDV physique
+        // - Sinon, tronquer l'affichage pour garantir qu'un physique (durée min) tienne avant le prochain busy
+        const physDurMin = Number(settings?.demo_physique_duration_min ?? settings?.default_duration_min ?? 30);
+        const intervalMin = me.diff(ms, 'minute');
+        const isShort = intervalMin < physDurMin;
+        const displayEnd = isShort ? me : me.subtract(physDurMin, 'minute');
         evts.push({
-          id: `slot-${s.start}-${s.end}-${s.zone}`,
-          kind: 'slot', startISO: s.start, endISO: s.end,
-          startMin: minutesFromStart(ds), endMin: minutesFromStart(de),
-          zone: s.zone, color: zc, title, subtitle, clickable: true
+          id: `avail-${staffId}-${m.start}-${m.end}`,
+          kind: 'slot',
+          startISO: ms.toISOString(),
+          endISO: displayEnd.toISOString(),
+          startMin: minutesFromStart(ms),
+          endMin: minutesFromStart(displayEnd),
+          zone: '',
+          zone_id: undefined,
+          color: '#34a853',
+          title: `${ms.format('HH:mm')} → ${displayEnd.format('HH:mm')}`,
+          clickable: true,
+          staffId: Number(staffId),
+          lane,
+          lanesCount: 2,
+          onlyVisio: isShort
+        });
+        }
+        cursor = me;
+      }
+      if (cursor.isBefore(dayEnd)) {
+        evts.push({
+          id: `busy-${staffId}-${cursor.toISOString()}-${dayEnd.toISOString()}`,
+          kind: 'busy',
+          startISO: cursor.toISOString(),
+          endISO: dayEnd.toISOString(),
+          startMin: minutesFromStart(cursor),
+          endMin: minutesFromStart(dayEnd),
+          zone: '',
+          color: 'transparent',
+          title: '',
+          clickable: false,
+          lane,
+          lanesCount: 2
         });
       }
     }
-    // Ajoute les événements regroupés (si aucune zone sélectionnée pour la demi-journée)
-    for (const g of groups.values()) {
-      const ds = dayjs(g.startISO).tz('Europe/Paris');
-      const de = dayjs(g.endISO).tz('Europe/Paris');
-      const title = `${ds.format('HH:mm')} → ${de.format('HH:mm')}`;
-      const subtitle = Array.from(g.staff).join(', ');
-      evts.push({
-        id: `slotg-${g.startISO}-${g.endISO}`,
-        kind: 'slot', startISO: g.startISO, endISO: g.endISO,
-        startMin: minutesFromStart(ds), endMin: minutesFromStart(de),
-        zone: Array.from(g.zones).join(' / '), color: '#6b21a8', title, subtitle, clickable: true
-      });
-    }
+
+    // Bookings overlay
     for (const b of bookings) {
       const ds = dayjs(b.start).tz('Europe/Paris');
       if (!ds.isSame(day, 'day')) continue;
       const de = dayjs(b.end).tz('Europe/Paris');
-      // Filtre par sélection de zone (demi-journée) pour les RDV pris
-      const dateStr = day.tz('Europe/Paris').format('YYYY-MM-DD');
-      const half: 'morning'|'afternoon' = ds.hour() < 13 ? 'morning' : 'afternoon';
-      const sel = selectedZoneFor(dateStr, half);
-      if (sel && b.zone !== sel) continue;
+      const sid: any = (b as any).staff_id;
+      const lane = ((staffs && staffs.length >= 2) ? [staffs[0].id, staffs[1].id] : [1,2]).indexOf(Number(sid));
+      if (lane === -1) continue;
+      if (viewScope==='zone' && scopeZoneId && Number(b.zone_id)!==Number(scopeZoneId)) continue;
+      
       const timeLabel = `${ds.format('HH:mm')} → ${de.format('HH:mm')}`;
-      const mainTitle = `${b.client_name || 'Sans nom'}${(b.title && b.title.trim()) ? ` - ${b.title}` : ''} - ${b.zone}`;
-      const subtitle = `${timeLabel}${b.staff_name ? ` · ${b.staff_name}` : ''}`;
+      const mainTitle = (b.zone || '').toUpperCase();
+      const subtitle = `Démo DigiResa - ${b.restaurant_name || b.client_name || ''}`;
+      const bgColor = '#1a73e8';
       evts.push({
         id: `bk-${b.id}`,
-        kind: 'booking', startISO: ds.toISOString(), endISO: de.toISOString(),
-        startMin: minutesFromStart(ds), endMin: minutesFromStart(de),
-        zone: b.zone, color: '#ea4335', title: mainTitle, subtitle, clickable: true
+        kind: 'booking',
+        startISO: ds.toISOString(),
+        endISO: de.toISOString(),
+        startMin: minutesFromStart(ds),
+        endMin: minutesFromStart(de),
+        zone: b.zone,
+        zone_id: b.zone_id,
+        staffId: Number(sid) || undefined,
+        color: bgColor,
+        title: mainTitle,
+        subtitle,
+        clickable: true,
+        lane,
+        lanesCount: 2
       });
     }
+
     const maxMin = (hourEnd - hourStart) * 60;
     for (const e of evts) {
       e.startMin = Math.max(0, Math.min(maxMin, e.startMin));
       e.endMin = Math.max(0, Math.min(maxMin, e.endMin));
     }
     evts.sort((a, b) => a.startMin - b.startMin || a.endMin - b.endMin);
-    const laneEnds: number[] = [];
-    for (const e of evts) {
-      let lane = laneEnds.findIndex(end => end <= e.startMin);
-      if (lane === -1) { lane = laneEnds.length; laneEnds.push(e.endMin); }
-      else { laneEnds[lane] = e.endMin; }
-      e.lane = lane;
-    }
-    const lanesCount = Math.max(1, laneEnds.length);
-    for (const e of evts) e.lanesCount = lanesCount;
     return evts;
+  }
+
+  // Initiales d'un nom de staff
+  function staffInitials(name?: string) {
+    if (!name) return '';
+    const parts = String(name).trim().split(/\s+/);
+    const letters = parts.map(p => p[0]?.toUpperCase() || '').join('');
+    return letters.slice(0, 3);
   }
 
   function prevWeek() { setWeekStart(weekStart.subtract(7, 'day')); }
   function nextWeek() { setWeekStart(weekStart.add(7, 'day')); }
   function goToday() { setWeekStart(weekStartMonday(dayjs())); }
+
+  // Préférences de vue (persistées)
+  useEffect(() => {
+    try {
+      const vs = localStorage.getItem('cal_viewScope');
+      if (vs === 'global' || vs === 'zone') setViewScope(vs);
+      const sz = localStorage.getItem('cal_scopeZoneId');
+      if (sz != null) setScopeZoneId(Number(sz));
+    } catch {}
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  useEffect(() => { try { localStorage.setItem('cal_viewScope', viewScope); } catch {} }, [viewScope]);
+  // plus de persistance de scopeStaffId
+  useEffect(() => { try { if (scopeZoneId!=null) localStorage.setItem('cal_scopeZoneId', String(scopeZoneId)); } catch {} }, [scopeZoneId]);
 
   // Evite tout rendu côté serveur pour prévenir les écarts SSR/CSR (dates, TZ, etc.)
   if (!mounted) return <div suppressHydrationWarning />;
@@ -410,74 +446,44 @@ export default function CalendarWeek() {
         </div>
 
         <div style={styles.headerRight}>
-          <div style={styles.viewToggle}>
-            <button 
-              onClick={() => setViewMode('day')} 
-              style={{...styles.viewBtn, ...(viewMode === 'day' ? styles.viewBtnActive : {})}}
-            >
-              Jour
-            </button>
-            <button 
-              onClick={() => setViewMode('week')} 
-              style={{...styles.viewBtn, ...(viewMode === 'week' ? styles.viewBtnActive : {})}}
-            >
-              Semaine
-            </button>
-          </div>
-
-          <div style={styles.filters}>
-            <select 
-              value={zoneFilter || ''} 
-              onChange={e => setZoneFilter(e.target.value || undefined)} 
-              style={styles.filterSelect}
-            >
-              <option value="">Toutes les zones</option>
-              {zonesList.map(z => <option key={z.id} value={z.name}>{z.name}</option>)}
-            </select>
+          <div style={{ display:'flex', alignItems:'center', gap:12 }}>
+            <span style={{ fontSize: 12, color: '#6b7280' }}>Vue:</span>
+            <button onClick={()=>setViewScope('global')} style={{...styles.secondaryBtn, backgroundColor: viewScope==='global'?'#e8f0fe':'#f8f9fa'}}>Globale</button>
             
-            <select 
-              value={staffFilter || 0} 
-              onChange={e => setStaffFilter(Number(e.target.value) || undefined)} 
-              style={styles.filterSelect}
-            >
-              <option value={0}>Tous les staffs</option>
-              {staffs.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
-            </select>
+            <button onClick={()=>setViewScope('zone')} style={{...styles.secondaryBtn, backgroundColor: viewScope==='zone'?'#e8f0fe':'#f8f9fa'}}>Par zone</button>
+            
+            {viewScope==='zone' && (
+              <select value={scopeZoneId ?? (zonesList[0]?.id||0)} onChange={e=>setScopeZoneId(Number(e.target.value)||undefined)} style={styles.input}>
+                {zonesList.map(z=> <option key={z.id} value={z.id}>{z.name}</option>)}
+              </select>
+            )}
           </div>
-
-          <button style={styles.settingsBtn}>
-            <Settings />
-          </button>
         </div>
       </header>
 
       {/* Calendrier principal */}
       <main style={styles.main}>
         <div style={styles.calendarContainer}>
-          {/* En-têtes des jours */}
+          {/* Légende couleurs + zones affectées par staff */}
+          <div style={styles.legend}>
+            <div style={styles.legendItem}><span style={{...styles.legendDot, background:'#34a853'}} /> Dispo (≥ {Number(settings?.demo_physique_duration_min ?? settings?.default_duration_min ?? 30)} min)</div>
+            <div style={styles.legendItem}><span style={{...styles.legendDot, background:'#1a73e8'}} /> Réservation</div>
+            <div style={styles.legendItem}>
+              <span style={{fontWeight:600, marginRight:6}}>{staffs[0]?.name || 'Staff 1'}:</span>
+              <span>{((staffZones.filter(x=>x.staff_id===(staffs[0]?.id||-1)).map(x=> zonesById.get(x.zone_id)).filter(Boolean) as string[]).join(' · ')) || '-'}</span>
+            </div>
+            <div style={styles.legendItem}>
+              <span style={{fontWeight:600, marginRight:6}}>{staffs[1]?.name || 'Staff 2'}:</span>
+              <span>{((staffZones.filter(x=>x.staff_id===(staffs[1]?.id||-1)).map(x=> zonesById.get(x.zone_id)).filter(Boolean) as string[]).join(' · ')) || '-'}</span>
+            </div>
+          </div>
+          {/* En-têtes des jours (sans sélecteurs de zones) */}
           <div style={styles.weekHeader}>
             <div style={styles.timeColumn}></div>
             {days.map(d => {
-              const wd = d.day();
               const dateStr = d.format('YYYY-MM-DD');
               const isToday = d.isSame(dayjs(), 'day');
-              const isWeekend = wd === 0 || wd === 6;
-              
-              const ex = exceptionsByDate.get(dateStr);
-              let zForDay = [] as Array<{ id:number; name:string; color?:string; ranges:string[] }>;
-              if (ex && ex.size) {
-                const zmap = Object.fromEntries(zonesList.map(z => [z.id, z]));
-                for (const [zoneId, ranges] of ex.entries()) {
-                  const z = zmap[zoneId]; if (!z) continue;
-                  if (zoneFilter && z.name !== zoneFilter) continue;
-                  const hasStaff = staffZoneRules.some(r => r.zone_id===zoneId && r.weekday===wd);
-                  const labelRanges = ranges.map(r => `${r.start.slice(0,5)}–${r.end.slice(0,5)}`);
-                  zForDay.push({ id: zoneId, name: z.name + (hasStaff? '' : ' • aucun staff'), color: z.color, ranges: labelRanges });
-                }
-                zForDay.sort((a,b)=> a.name.localeCompare(b.name));
-              } else {
-                zForDay = zonesForDay(wd);
-              }
+              const isWeekend = d.day() === 0 || d.day() === 6;
 
               return (
                 <div key={d.toString()} style={{
@@ -491,85 +497,28 @@ export default function CalendarWeek() {
                       {d.format('D')}
                     </div>
                   </div>
-                  
-                  {/* Tags généraux des zones ouvertes masqués selon demande */}
-
-                  {/* Tags issus des sélections (si présentes) */}
-                  {(() => {
-                    const mor = selectedZoneFor(dateStr,'morning');
-                    const aft = selectedZoneFor(dateStr,'afternoon');
-                    const tags: string[] = [];
-                    if (mor) tags.push(mor);
-                    if (aft && aft!==mor) tags.push(aft);
-                    if (tags.length) {
+                  {/* Initiales des deux staffs alignées avec les 2 colonnes */}
+                  <div style={{ position:'relative', fontSize:12, color:'#6b7280', padding:'2px 6px' }}>
+                    {(() => {
+                      const key = d.format('YYYY-MM-DD');
+                      const sel = daySel[key];
+                      if (sel && (sel.morning || sel.afternoon)) {
+                        return (
+                          <div style={{display:'flex', justifyContent:'space-between', gap:8}}>
+                            <div>MATIN: {sel?.morning ? (zonesById.get(sel.morning) || sel.morning) : '-'}</div>
+                            <div>SOIR: {sel?.afternoon ? (zonesById.get(sel.afternoon) || sel.afternoon) : '-'}</div>
+                          </div>
+                        );
+                      }
+                      // fallback: initiales staff
                       return (
-                        <div style={{ display:'flex', gap:6, justifyContent:'center', flexWrap:'wrap', marginTop:6 }}>
-                          {tags.map((name)=>{
-                            const z = zonesList.find(zz=>zz.name===name);
-                            const c = z?.color || '#a66f21';
-                            return (
-                              <div key={name} style={{ padding:'2px 8px', borderRadius:12, fontSize:11, fontWeight:500, border:`1px solid ${c}`, maxWidth:'100%', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', backgroundColor:(c+'20'), color:c }}>
-                                {name}
-                              </div>
-                            );
-                          })}
-                          {mounted && (
-                            <button onClick={()=> setEditDay(dateStr)} style={styles.editBtn}><Edit /></button>
-                          )}
+                        <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr' }}>
+                          <div style={{ textAlign:'center' }}>{staffInitials(staffs[0]?.name) || 'S1'}</div>
+                          <div style={{ textAlign:'center' }}>{staffInitials(staffs[1]?.name) || 'S2'}</div>
                         </div>
                       );
-                    }
-                    // Pas de tags encore: afficher un bouton Configurer pour ouvrir le sélecteur
-                    return mounted ? (
-                      <div style={{ display:'flex', justifyContent:'center', marginTop:6 }}>
-                        <button onClick={()=> setEditDay(dateStr)} style={styles.editBtn}>Configurer</button>
-                      </div>
-                    ) : null;
-                  })()}
-
-                  {/* Sélecteurs de zone par demi-journée (matin/après-midi) */}
-                  {mounted && editDay === dateStr && (
-                    <div style={{ display:'grid', gap:6, marginTop:6 }}>
-                      <div style={{ display:'flex', gap:6, alignItems:'center', justifyContent:'center', flexWrap:'wrap' }}>
-                        <span style={{fontSize:12, color:'#6b7280'}}>Matin</span>
-                        <select
-                          value={selectedZoneFor(dateStr,'morning')||''}
-                          onChange={e=> setSelectedZone(dateStr,'morning', e.target.value || undefined)}
-                          style={styles.filterSelect}
-                        >
-                          <option value="">—</option>
-                          {zForDay.map(z => <option key={z.id} value={z.name}>{z.name}</option>)}
-                        </select>
-                        <span style={{fontSize:12, color:'#6b7280'}}>Après‑midi</span>
-                        <select
-                          value={selectedZoneFor(dateStr,'afternoon')||''}
-                          onChange={e=> setSelectedZone(dateStr,'afternoon', e.target.value || undefined)}
-                          style={styles.filterSelect}
-                        >
-                          <option value="">—</option>
-                          {zForDay.map(z => <option key={z.id} value={z.name}>{z.name}</option>)}
-                        </select>
-                        {(dayZoneSel[dateStr]?.morning || dayZoneSel[dateStr]?.afternoon) && (
-                          <button onClick={()=> setDayZoneSel(p=>{ const c={...p}; delete c[dateStr]; return c; })} style={styles.navBtn}>Effacer</button>
-                        )}
-                      </div>
-                      <div style={{ display:'flex', justifyContent:'center' }}>
-                        <button
-                          onClick={async()=>{
-                            const mor = selectedZoneFor(dateStr,'morning');
-                            const aft = selectedZoneFor(dateStr,'afternoon');
-                            const findZoneId = (name?:string)=> name? (zonesList.find(z=>z.name===name)?.id||0) : 0;
-                            try{
-                              if (mor) await fetch(`${API}/admin/day_zone_selection`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({date:dateStr,half:'morning',zone_id:findZoneId(mor)})});
-                              if (aft) await fetch(`${API}/admin/day_zone_selection`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({date:dateStr,half:'afternoon',zone_id:findZoneId(aft)})});
-                            }catch{}
-                            setEditDay(null);
-                          }}
-                          style={styles.navBtn}
-                        >Enregistrer</button>
-                      </div>
-                    </div>
-                  )}
+                    })()}
+                  </div>
                 </div>
               );
             })}
@@ -591,7 +540,7 @@ export default function CalendarWeek() {
               ))}
             </div>
 
-            {/* Colonnes des jours */}
+            {/* Colonnes des jours (2 colonnes: STAFF 1 / STAFF 2) */}
             {days.map(d => {
               const evts = eventsForDay(d);
               const isWeekend = d.day() === 0 || d.day() === 6;
@@ -604,6 +553,8 @@ export default function CalendarWeek() {
                   ...styles.dayColumn,
                   backgroundColor: isWeekend ? '#fafbfc' : '#ffffff'
                 }}>
+                  {/* Info: no availability windows for staff lanes */}
+                  {/* Labels 'Pas de DISPO' retirés */}
                   {/* Lignes horaires */}
                   {hours.map(h => (
                     <div key={h} style={styles.hourLine} />
@@ -619,10 +570,26 @@ export default function CalendarWeek() {
                     </div>
                   )}
 
+                  {/* Fonds de colonnes Staff (gauche/droite) */}
+                  <div style={styles.staffBgLeft} />
+                  <div style={styles.staffBgRight} />
+
+                  {/* no extra column header inside day columns */}
+
+                  {/* Séparateur vertical au milieu pour matérialiser les 2 colonnes */}
+                  <div style={{ position:'absolute', top:0, bottom:0, left:'50%', width:1, background:'#e8eaed', zIndex:1 }} />
+
+                  {/* Aperçu de l'heure au survol */}
+                  {hoverHint && hoverHint.key===`col-${d.toString()}` && (
+                    <div style={{ position:'absolute', left:'50%', transform:'translate(-50%, -50%)', top: hoverHint.top, background:'#fff', border:'1px solid #e5e7eb', borderRadius:6, padding:'2px 6px', fontSize:10, color:'#374151', zIndex:6, boxShadow:'0 1px 2px rgba(0,0,0,0.1)', pointerEvents:'none' }}>
+                      {hoverHint.label}
+                    </div>
+                  )}
+
                   {/* Événements */}
                   {evts.map((e) => {
                     const gap = 2;
-                    const cols = Math.max(1, e.lanesCount || 1);
+                    const cols = 2;
                     const widthPct = (100 - (cols - 1) * gap) / cols;
                     const leftPct = (e.lane || 0) * (widthPct + gap);
                     const top = (e.startMin / 60) * PX_PER_HOUR;
@@ -631,10 +598,39 @@ export default function CalendarWeek() {
                     return (
                       <div
                         key={e.id}
-                        onClick={e.clickable ? () => {
+                        onMouseMove={e.kind==='slot' ? (ev) => {
+                          const parent = (ev.currentTarget as HTMLDivElement).parentElement as HTMLDivElement;
+                          const rect = parent.getBoundingClientRect();
+                          const y = ev.clientY - rect.top;
+                          const minutesFromStart = Math.max(0, Math.min(((y / PX_PER_HOUR) * 60), (hourEnd - hourStart) * 60));
+                          const step = Number(settings?.booking_step_min ?? 15);
+                          const snapped = Math.floor(minutesFromStart / step) * step;
+                          const startPick = d.tz('Europe/Paris').hour(hourStart).minute(0).second(0).millisecond(0).add(snapped, 'minute');
+                          setHoverHint({ key: `col-${d.toString()}`, top: (snapped/60)*PX_PER_HOUR, label: startPick.format('HH:mm') });
+                        } : undefined}
+                        onMouseLeave={e.kind==='slot' ? () => setHoverHint(null) : undefined}
+                        onClick={e.clickable ? (ev) => {
                           if (e.kind === 'slot') {
-                            const s = slots.find(s => `slot-${s.start}-${s.end}-${s.zone}` === e.id);
-                            if (s) { setSelectedSlot(s as any); setModalOpen(true); }
+                            const parent = (ev.currentTarget as HTMLDivElement).parentElement as HTMLDivElement;
+                            const rect = parent.getBoundingClientRect();
+                            const y = ev.clientY - rect.top;
+                            const minutesFromStart = Math.max(0, Math.min(((y / PX_PER_HOUR) * 60), (hourEnd - hourStart) * 60));
+                            const step = Number(settings?.booking_step_min ?? 15);
+                            const dur = Number(settings?.default_duration_min ?? 30);
+                            const snapped = Math.floor(minutesFromStart / step) * step;
+                            const startPick = d.tz('Europe/Paris').hour(hourStart).minute(0).second(0).millisecond(0).add(snapped, 'minute');
+                            const finalStart = startPick;
+                            const finalEnd = finalStart.add(dur, 'minute');
+                            const sid = e.staffId ?? ((staffs && staffs.length>=2) ? [staffs[0].id, staffs[1].id][e.lane || 0] : undefined);
+                            const slotObj: Slot = {
+                              start: finalStart.toISOString(),
+                              end: finalEnd.toISOString(),
+                              zone: e.zone || '',
+                              zone_id: e.zone_id,
+                              available_staff_ids: sid ? [sid] : []
+                            };
+                            setSelectedSlot(slotObj);
+                            setModalOpen(true);
                           } else if (e.kind === 'booking') {
                             const idStr = e.id.replace('bk-', '');
                             const b = bookings.find(x => String(x.id) === idStr);
@@ -649,19 +645,18 @@ export default function CalendarWeek() {
                           width: `${widthPct}%`,
                           height,
                           backgroundColor: e.color,
-                          cursor: e.clickable ? 'pointer' : 'default'
+                          cursor: e.clickable ? 'pointer' : 'default',
+                          zIndex: (e.kind === 'booking') ? 4 : (e.kind === 'slot' ? 3 : 2)
                         }}
                         title={`${e.title} · ${e.zone}${e.subtitle ? ` · ${e.subtitle}` : ''}`}
                       >
                         <div style={styles.eventTitle}>{e.title}</div>
-                        {/* Sur les créneaux (slot), n'afficher que l'heure (pas la zone, pas la liste staff) */}
-                        {e.kind === 'booking' && (
-                          <>
-                            <div style={styles.eventZone}>{e.zone}</div>
-                            {e.subtitle && (
-                              <div style={styles.eventSubtitle}>{e.subtitle}</div>
-                            )}
-                          </>
+                        {e.kind==='slot' && e.onlyVisio && (
+                          <div style={{position:'absolute', top:4, right:4, background:'#1a73e8', color:'#fff', borderRadius:4, padding:'0 4px', fontSize:9}}>SEULEMENT VISIO</div>
+                        )}
+                        {/* Sur les bookings: n'afficher que le sous-titre (zone en titre) */}
+                        {e.kind === 'booking' && e.subtitle && (
+                          <div style={styles.eventSubtitle}>{e.subtitle}</div>
                         )}
                       </div>
                     );
@@ -678,12 +673,18 @@ export default function CalendarWeek() {
         onClose={() => setModalOpen(false)}
         slot={selectedSlot}
         staffMap={staffMap}
+        slots={slots}
+        staffZones={staffZones}
+        zonesList={zonesList}
+        bookings={bookings}
+        settings={settings}
+        onBooked={async()=>{ await reloadBookings(); reloadSlots(); setModalOpen(false); }}
       />
       <BookingDetailsModal
         open={!!openBooking}
         onClose={()=>setOpenBooking(null)}
         booking={openBooking}
-        onCanceled={async()=>{ await reloadBookings(); setOpenBooking(null); }}
+        onCanceled={async()=>{ await reloadBookings(); reloadSlots(); setOpenBooking(null); }}
       />
     </div>
   );
@@ -888,16 +889,38 @@ const styles: any = {
   calendarContainer: {
     height: 'calc(100vh - 73px)',
     display: 'flex',
-    flexDirection: 'column'
+    flexDirection: 'column',
+    overflow: 'auto'
+  },
+  legend: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '16px',
+    padding: '8px 16px',
+    fontSize: '12px',
+    color: '#5f6368',
+    backgroundColor: '#ffffff',
+    borderBottom: '1px solid #e8eaed'
+  },
+  legendItem: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '6px'
+  },
+  legendDot: {
+    display: 'inline-block',
+    width: '10px',
+    height: '10px',
+    borderRadius: '2px'
   },
   
   weekHeader: {
     display: 'grid',
-    gridTemplateColumns: '64px repeat(7, 1fr)',
+    gridTemplateColumns: '64px repeat(6, 1fr)',
     borderBottom: '1px solid #e8eaed',
     backgroundColor: '#ffffff',
     position: 'sticky',
-    top: '73px',
+    top: 0,
     zIndex: 5
   },
   
@@ -1070,9 +1093,8 @@ const styles: any = {
   
   calendarGrid: {
     display: 'grid',
-    gridTemplateColumns: '64px repeat(7, 1fr)',
-    flex: 1,
-    overflow: 'auto'
+    gridTemplateColumns: '64px repeat(6, 1fr)',
+    flex: 1
   },
   
   timeSlot: {
@@ -1092,7 +1114,8 @@ const styles: any = {
   
   dayColumn: {
     position: 'relative',
-    borderRight: '1px solid #e8eaed'
+    borderRight: '1px solid #e8eaed',
+    minWidth: '240px'
   },
   
   hourLine: {
@@ -1118,6 +1141,26 @@ const styles: any = {
     borderRadius: '50%',
     marginLeft: '-6px',
     border: '2px solid #ffffff'
+  },
+  
+  // Fond de colonne pour séparer visuellement les 2 staffs
+  staffBgLeft: {
+    position: 'absolute',
+    top: 0,
+    bottom: 0,
+    left: 0,
+    width: '50%',
+    backgroundColor: '#fbfbfe',
+    zIndex: 0
+  },
+  staffBgRight: {
+    position: 'absolute',
+    top: 0,
+    bottom: 0,
+    right: 0,
+    width: '50%',
+    backgroundColor: '#fdfcf8',
+    zIndex: 0
   },
   
   event: {
@@ -1165,241 +1208,7 @@ const styles: any = {
   }
 };
 
-// Modal de réservation modernisée
-function BookingModal({
-  open, onClose, slot, staffMap
-}: { open: boolean; onClose: () => void; slot: Slot | null; staffMap: Record<number, string>; }) {
-  const [name, setName] = useState('');
-  const [email, setEmail] = useState('');
-  const [tel, setTel] = useState('');
-  const [title, setTitle] = useState('');
-  const [notes, setNotes] = useState('');
-  const [att, setAtt] = useState('');
-  const [staffId, setStaffId] = useState<number | undefined>(undefined);
-  const [isVisio, setIsVisio] = useState(false);
-  const [restaurant, setRestaurant] = useState('');
-  const [city, setCity] = useState('');
-  const [loading, setLoading] = useState(false);
-  const [ok, setOk] = useState<string | null>(null);
-  const [err, setErr] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (open) {
-      setName(''); setEmail(''); setTel(''); setTitle(''); setNotes(''); setAtt('');
-      setStaffId(undefined); setIsVisio(false); setRestaurant(''); setCity(''); setOk(null); setErr(null); setLoading(false);
-    }
-  }, [open]);
-
-  if (!open || !slot) return null;
-
-  async function book() {
-    setLoading(true); setOk(null); setErr(null);
-    try {
-      const localStart = dayjs(slot.start).tz('Europe/Paris').format();
-      const localEnd = dayjs(slot.end).tz('Europe/Paris').format();
-      // Construit la liste des invités: ajoute l'email client s'il est renseigné
-      const rawInv = att.split(',').map(s => s.trim()).filter(Boolean);
-      const emails = [ ...(email ? [email] : []), ...rawInv ];
-      const seen = new Set<string>();
-      const attendees = emails.filter(e => { const k = e.toLowerCase(); if (seen.has(k)) return false; seen.add(k); return true; });
-
-      const body: any = {
-        slot_start: localStart, slot_end: localEnd, zone_name: slot.zone,
-        client_name: name, client_email: email, client_phone: tel,
-        summary: `DÉMO DIGIRESA (${name||''})`, notes,
-        attendees,
-      };
-      body.meeting_mode = isVisio ? 'visio' : 'physique';
-      if (restaurant) body.restaurant_name = restaurant;
-      if (city) body.city = city;
-      if (staffId) body.staff_id = staffId;
-      const res = await fetch(`${API}/book`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Idempotency-Key': crypto.randomUUID() },
-        body: JSON.stringify(body)
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data?.detail || data?.error || 'Erreur');
-      const meet = data?.meet_link ? ` · Lien Meet: ${data.meet_link}` : '';
-      setOk(`Réservation confirmée ! ${staffMap[data.staff_id] || `Staff ${data.staff_id}`}${meet}`);
-    } catch (e: any) {
-      setErr(e.message || 'Erreur lors de la réservation');
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  return (
-    <div style={modalStyles.backdrop} onClick={onClose}>
-      <div style={modalStyles.modal} onClick={e => e.stopPropagation()}>
-        <div style={modalStyles.header}>
-          <h2 style={modalStyles.title}>Nouvelle réservation</h2>
-          <button onClick={onClose} style={modalStyles.closeBtn}>✕</button>
-        </div>
-        
-        <div style={modalStyles.timeInfo}>
-          <div style={modalStyles.timeIcon}>🕐</div>
-          <div>
-            <div style={modalStyles.timeText}>
-              {new Date(slot.start).toLocaleDateString('fr-FR', { 
-                weekday: 'long', 
-                year: 'numeric', 
-                month: 'long', 
-                day: 'numeric' 
-              })}
-            </div>
-            <div style={modalStyles.timeRange}>
-              {new Date(slot.start).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}
-              {' '}–{' '}
-              {new Date(slot.end).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}
-            </div>
-            <div style={modalStyles.zoneInfo}>Zone: {slot.zone}</div>
-          </div>
-        </div>
-
-        <form style={modalStyles.form}>
-          <div style={modalStyles.formRow}>
-            <div style={modalStyles.formGroup}>
-              <label style={modalStyles.label}>Nom du restaurant</label>
-              <input
-                type="text"
-                placeholder="Ex: Chez Mario"
-                value={restaurant}
-                onChange={e => setRestaurant(e.target.value)}
-                style={modalStyles.input}
-              />
-            </div>
-            <div style={modalStyles.formGroup}>
-              <label style={modalStyles.label}>Ville</label>
-              <input
-                type="text"
-                placeholder="Ex: Narbonne"
-                value={city}
-                onChange={e => setCity(e.target.value)}
-                style={modalStyles.input}
-              />
-            </div>
-          </div>
-
-          <div style={modalStyles.formRow}>
-            <div style={modalStyles.formGroup}>
-              <label style={modalStyles.label}>Nom du client *</label>
-              <input
-                type="text"
-                placeholder="Jean Dupont"
-                value={name}
-                onChange={e => setName(e.target.value)}
-                style={modalStyles.input}
-                required
-              />
-            </div>
-            <div style={modalStyles.formGroup}>
-              <label style={modalStyles.label}>Staff assigné</label>
-              <select
-                value={staffId ?? 0}
-                onChange={e => setStaffId(Number(e.target.value) || undefined)}
-                style={modalStyles.select}
-              >
-                <option value={0}>Attribution automatique</option>
-                {slot.available_staff_ids.map(id => (
-                  <option key={id} value={id}>
-                    {staffMap[id] || `Staff ${id}`}
-                  </option>
-                ))}
-              </select>
-            </div>
-          </div>
-
-          <div style={modalStyles.formRow}>
-            <div style={modalStyles.formGroup}>
-              <label style={modalStyles.label}>Email</label>
-              <input
-                type="email"
-                placeholder="jean.dupont@email.com"
-                value={email}
-                onChange={e => setEmail(e.target.value)}
-                style={modalStyles.input}
-              />
-            </div>
-            <div style={modalStyles.formGroup}>
-              <label style={modalStyles.label}>Téléphone</label>
-              <input
-                type="tel"
-                placeholder="06 12 34 56 78"
-                value={tel}
-                onChange={e => setTel(e.target.value)}
-                style={modalStyles.input}
-              />
-            </div>
-          </div>
-
-          <div style={modalStyles.formGroup}>
-            <label style={modalStyles.label}>Notes</label>
-            <textarea
-              placeholder="Informations complémentaires..."
-              value={notes}
-              onChange={e => setNotes(e.target.value)}
-              style={modalStyles.textarea}
-              rows={3}
-            />
-          </div>
-
-          <div style={modalStyles.formGroup}>
-            <label style={modalStyles.label}>Invités (emails séparés par des virgules)</label>
-            <input
-              type="text"
-              placeholder="invite1@email.com, invite2@email.com"
-              value={att}
-              onChange={e => setAtt(e.target.value)}
-              style={modalStyles.input}
-            />
-          </div>
-
-          <div style={modalStyles.formGroup}>
-            <label style={modalStyles.label}>Type de rendez-vous</label>
-            <label style={{display:'flex',alignItems:'center',gap:8,fontSize:14}}>
-              <input type="checkbox" checked={isVisio} onChange={e=>setIsVisio(e.target.checked)} />
-              RDV en visio (Google Meet)
-            </label>
-          </div>
-
-          {ok && (
-            <div style={modalStyles.successMessage}>
-              ✅ {ok}
-            </div>
-          )}
-
-          {err && (
-            <div style={modalStyles.errorMessage}>
-              ❌ {err}
-            </div>
-          )}
-
-          <div style={modalStyles.actions}>
-            <button
-              type="button"
-              onClick={onClose}
-              style={modalStyles.cancelButton}
-            >
-              Annuler
-            </button>
-            <button
-              type="button"
-              onClick={book}
-              disabled={!name || loading}
-              style={{
-                ...modalStyles.saveButton,
-                ...((!name || loading) ? modalStyles.saveButtonDisabled : {})
-              }}
-            >
-              {loading ? 'Création en cours...' : 'Créer l\'événement'}
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
-  );
-}
+// BookingModal moved to components/BookingModal.tsx
 
 const modalStyles: any = {
   backdrop: {
